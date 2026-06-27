@@ -120,6 +120,7 @@ export {
   requireCustodyState,
   type AccountOwner,
   type CustodyState,
+  type PublicAccountOwner,
 } from "./custody.js";
 export type {
   AcceptInviteTxSpec,

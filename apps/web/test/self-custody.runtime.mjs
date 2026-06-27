@@ -1,8 +1,9 @@
 import {
-  parseKeyRef,
   parseNonce,
+  parseSessionId,
   parseSuiAddress,
   parseTwitterSub,
+  parseUserId,
 } from "@pairmarket/core";
 import { nextSelfCustodyState } from "../src/self-custody.ts";
 
@@ -18,10 +19,12 @@ const walletAddress = parseSuiAddress(
 const linked = {
   kind: "linked",
   sub: parseTwitterSub("twitter:ada"),
+  userId: parseUserId("twitter:ada"),
+  sessionId: parseSessionId("twitter_session_1234567890"),
   address: parseSuiAddress(
     "0x0000000000000000000000000000000000000000000000000000000000000456",
   ),
-  owner: { kind: "custodial", keyRef: parseKeyRef("kms:pairmarket/ada") },
+  owner: { kind: "custodial" },
 };
 
 const selfCustody = nextSelfCustodyState(

@@ -1,18 +1,14 @@
 import { useSyncExternalStore } from "react";
 import type { CustodyState } from "@pairmarket/core";
-import {
-  parseNonce,
-  parseSuiAddress,
-  parseTwitterSub,
-  parseKeyRef,
-} from "@pairmarket/core";
 import type { AppState } from "../types.ts";
 import { seedAppState } from "./seed.ts";
+import { createPrototypeTwitterCustodyClient } from "../auth/twitter-custody.ts";
 
 type Listener = () => void;
 
 let state: AppState = seedAppState();
 let custody: CustodyState = { kind: "anonymous" };
+const twitterCustody = createPrototypeTwitterCustodyClient();
 const listeners = new Set<Listener>();
 
 function notify(): void {
@@ -67,23 +63,22 @@ export function useCustody(): CustodyState {
   return useSyncExternalStore(subscribe, getCustody, getCustody);
 }
 
-// Mock OAuth: the real flow is a redirect to Twitter; here we synthesize
-// a nonce, briefly transition through awaiting-oauth, and resolve linked
-// with the seeded address for the current viewer.
+// Mock OAuth: the real flow is a redirect to Twitter; here the client speaks
+// through the same public session shape the eventual API will return.
 export async function signInWithTwitter(): Promise<void> {
-  const startNonce = parseNonce(crypto.randomUUID());
-  setCustody({ kind: "awaiting-oauth", nonce: startNonce });
-  await new Promise((r) => setTimeout(r, 150));
   const profile = state.users.get(state.viewer);
   if (!profile) throw new Error("no viewer profile");
+  const challenge = twitterCustody.beginSignIn(profile);
+  setCustody({ kind: "awaiting-oauth", nonce: challenge.nonce });
+  await new Promise((r) => setTimeout(r, 150));
+  const session = await twitterCustody.completeSignIn(challenge);
   setCustody({
     kind: "linked",
-    sub: parseTwitterSub(`twitter:${profile.handle}`),
-    address: parseSuiAddress(profile.address),
-    owner: {
-      kind: "custodial",
-      keyRef: parseKeyRef(`kms://mock/${profile.handle}`),
-    },
+    sub: session.sub,
+    userId: session.userId,
+    sessionId: session.sessionId,
+    address: session.address,
+    owner: session.owner,
   });
 }
 

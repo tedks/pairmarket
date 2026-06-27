@@ -90,7 +90,7 @@ export function createPrototypeAuthApi(
 }
 
 function userIdFromTwitterSub(sub: TwitterSub): UserId {
-  return parseUserId(`twitter:${sub}`);
+  return parseUserId(sub.startsWith("twitter:") ? sub : `twitter:${sub}`);
 }
 
 function sessionIdFromTwitterSub(sub: TwitterSub): SessionId {
