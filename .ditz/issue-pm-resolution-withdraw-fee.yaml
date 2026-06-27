@@ -1,0 +1,18 @@
+id: pm-resolution-withdraw-fee
+title: Should unilateral subject withdrawal carry a fee
+desc: A subject can always WithdrawConsent and cancel a Trading market. Decide whether
+  that path is penalty-free (current MVP default) or whether the withdrawing subject
+  pays a small gas-reservation fee, and in what asset given the custodial-wallet model.
+type: task
+component: resolution
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:18:25-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:18:25-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
