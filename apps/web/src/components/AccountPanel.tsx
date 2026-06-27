@@ -15,7 +15,7 @@ export function AccountPanel({ state, custody }: Props): JSX.Element {
       <header className="market-list-head">
         <h1>Account</h1>
         <p className="market-list-sub">
-          Mocked custody. Real wallet ships in a later milestone.
+          Self-custody first; Twitter custody remains a fallback path.
         </p>
       </header>
 
@@ -44,7 +44,28 @@ export function AccountPanel({ state, custody }: Props): JSX.Element {
             <span className="kv-k">State</span>
             <span className="kv-v">{custody.kind}</span>
           </div>
-          {custody.kind === "linked" ? (
+          {custody.kind === "self-custody" ? (
+            <>
+              <div className="kv">
+                <span className="kv-k">Wallet</span>
+                <span className="kv-v">{custody.walletName}</span>
+              </div>
+              <div className="kv">
+                <span className="kv-k">Network</span>
+                <span className="kv-v">{custody.network}</span>
+              </div>
+              <div className="kv">
+                <span className="kv-k">Sui address</span>
+                <span className="kv-v mono">{custody.address}</span>
+              </div>
+              <div className="kv">
+                <span className="kv-k">Owner</span>
+                <span className="kv-v">
+                  self-custody · {formatAddress(custody.address)}
+                </span>
+              </div>
+            </>
+          ) : custody.kind === "linked" ? (
             <>
               <div className="kv">
                 <span className="kv-k">Twitter sub</span>
@@ -70,7 +91,7 @@ export function AccountPanel({ state, custody }: Props): JSX.Element {
             </div>
           ) : (
             <p className="card-empty">
-              Sign in from the header to mint a custodial wallet.
+              Connect a Sui wallet or use Twitter custody from the header.
             </p>
           )}
         </div>

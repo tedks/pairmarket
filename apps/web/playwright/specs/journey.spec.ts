@@ -40,14 +40,29 @@ test.describe("pairmarket prototype journey", () => {
     ).toBeVisible();
   });
 
-  test("sign in mints a custodial wallet shown in the header", async ({
+  test("twitter custody remains available as a fallback sign-in", async ({
     page,
   }) => {
     await page.goto("/");
-    await expect(page.getByTestId("sign-in")).toBeVisible();
-    await page.getByTestId("sign-in").click();
+    await expect(page.getByTestId("connect-wallet")).toBeVisible();
+    await expect(page.getByTestId("sign-in-twitter")).toBeVisible();
+    await page.getByTestId("sign-in-twitter").click();
     await expect(page.getByTestId("custody-linked")).toBeVisible();
     await expect(page.getByTestId("custody-linked")).toContainText("@ada");
+  });
+
+  test("self-custody wallet sign-in is the primary account path", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByTestId("connect-wallet").click();
+    await expect(page.getByTestId("custody-self")).toBeVisible();
+    await expect(page.getByTestId("custody-self")).toContainText("Burner");
+
+    await page.getByRole("button", { name: "Account" }).click();
+    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
+    await expect(page.getByText("self-custody", { exact: true })).toBeVisible();
+    await expect(page.getByText("testnet", { exact: true })).toBeVisible();
   });
 
   test("end-to-end: consent → wager → attest → settle → claim", async ({

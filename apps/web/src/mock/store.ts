@@ -37,6 +37,17 @@ export function setState(
 }
 
 export function setCustody(next: CustodyState): void {
+  if (
+    custody.kind === next.kind &&
+    (next.kind === "anonymous" ||
+      (next.kind === "self-custody" &&
+        custody.kind === "self-custody" &&
+        custody.address === next.address &&
+        custody.walletName === next.walletName &&
+        custody.network === next.network))
+  ) {
+    return;
+  }
   custody = next;
   notify();
 }

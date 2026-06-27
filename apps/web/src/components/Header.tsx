@@ -1,5 +1,12 @@
 import type { JSX } from "react";
 import { useState } from "react";
+import {
+  useCurrentAccount,
+  useCurrentWallet,
+  useDAppKit,
+  useWalletConnection,
+  useWallets,
+} from "@mysten/dapp-kit-react";
 import type { CustodyState } from "@pairmarket/core";
 import {
   setState as setAppState,
@@ -18,6 +25,11 @@ type HeaderProps = {
 
 export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
   const [signingIn, setSigningIn] = useState(false);
+  const dAppKit = useDAppKit();
+  const wallets = useWallets();
+  const account = useCurrentAccount();
+  const wallet = useCurrentWallet();
+  const connection = useWalletConnection();
   return (
     <header className="app-header">
       <div className="brand">
@@ -32,6 +44,17 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
       <CustodyPill
         custody={custody}
         signingIn={signingIn}
+        accountAddress={account?.address}
+        walletName={wallet?.name}
+        canConnectWallet={wallets.length > 0}
+        connectingWallet={connection.isConnecting || connection.isReconnecting}
+        onConnectWallet={async () => {
+          const wallet =
+            wallets.find((w) => w.name.toLowerCase().includes("burner")) ??
+            wallets[0];
+          if (!wallet) return;
+          await dAppKit.connectWallet({ wallet });
+        }}
         onSignIn={async () => {
           setSigningIn(true);
           try {
@@ -40,7 +63,10 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
             setSigningIn(false);
           }
         }}
-        onSignOut={signOut}
+        onSignOut={async () => {
+          if (connection.isConnected) await dAppKit.disconnectWallet();
+          signOut();
+        }}
       />
     </header>
   );
@@ -81,24 +107,67 @@ function ViewerSwitcher({
 function CustodyPill({
   custody,
   signingIn,
+  accountAddress,
+  walletName,
+  canConnectWallet,
+  connectingWallet,
+  onConnectWallet,
   onSignIn,
   onSignOut,
 }: {
   readonly custody: CustodyState;
   readonly signingIn: boolean;
+  readonly accountAddress: string | undefined;
+  readonly walletName: string | undefined;
+  readonly canConnectWallet: boolean;
+  readonly connectingWallet: boolean;
+  readonly onConnectWallet: () => Promise<void>;
   readonly onSignIn: () => void;
-  readonly onSignOut: () => void;
+  readonly onSignOut: () => Promise<void>;
 }): JSX.Element {
   if (custody.kind === "anonymous") {
     return (
+      <div className="auth-actions">
+        <button
+          type="button"
+          className="custody-pill custody-pill-anon"
+          onClick={() => void onConnectWallet()}
+          disabled={!canConnectWallet || connectingWallet}
+          data-testid="connect-wallet"
+        >
+          {connectingWallet
+            ? "connecting wallet…"
+            : canConnectWallet
+              ? "Connect wallet"
+              : "No Sui wallet found"}
+        </button>
+        <button
+          type="button"
+          className="custody-pill custody-pill-secondary"
+          onClick={onSignIn}
+          disabled={signingIn}
+          data-testid="sign-in-twitter"
+        >
+          {signingIn ? "signing in…" : "Twitter custody"}
+        </button>
+      </div>
+    );
+  }
+  if (custody.kind === "self-custody") {
+    return (
       <button
         type="button"
-        className="custody-pill custody-pill-anon"
-        onClick={onSignIn}
-        disabled={signingIn}
-        data-testid="sign-in"
+        className="custody-pill custody-pill-linked"
+        onClick={() => void onSignOut()}
+        title="Disconnect wallet"
+        data-testid="custody-self"
       >
-        {signingIn ? "signing in…" : "Sign in with Twitter"}
+        <span className="custody-pill-sub">
+          {walletName ?? custody.walletName}
+        </span>
+        <span className="custody-pill-addr">
+          {formatAddress(accountAddress ?? custody.address)}
+        </span>
       </button>
     );
   }
@@ -116,7 +185,7 @@ function CustodyPill({
     <button
       type="button"
       className="custody-pill custody-pill-linked"
-      onClick={onSignOut}
+      onClick={() => void onSignOut()}
       title="Sign out"
       data-testid="custody-linked"
     >

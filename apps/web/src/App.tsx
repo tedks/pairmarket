@@ -7,6 +7,7 @@ import { MarketList } from "./components/MarketList.tsx";
 import { MarketDetail } from "./components/MarketDetail.tsx";
 import { CreateMarket } from "./components/CreateMarket.tsx";
 import { AccountPanel } from "./components/AccountPanel.tsx";
+import { SelfCustodyBridge } from "./components/SelfCustodyBridge.tsx";
 import { useAppState, useCustody } from "./mock/store.ts";
 
 export type Route =
@@ -28,6 +29,7 @@ export function App(): JSX.Element {
 
   return (
     <div className="app-shell">
+      <SelfCustodyBridge />
       <Header
         viewer={viewerProfile}
         users={[...state.users.values()]}

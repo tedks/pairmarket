@@ -11,6 +11,8 @@
     "test:e2e": "playwright test --config=playwright/playwright.config.ts"
   },
   "dependencies": {
+    "@mysten/dapp-kit-react": "^2.1.5",
+    "@mysten/sui": "2.20.1",
     "@pairmarket/core": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
