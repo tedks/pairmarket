@@ -1,6 +1,6 @@
 import type { Brand } from "./brand.js";
 import type { MarketId, MistAmount, UserId } from "./ids.js";
-import type { TxKind } from "./tx.js";
+import type { TxIntent, TxKind } from "./tx.js";
 
 export type InviteCap = Brand<
   {
@@ -66,4 +66,18 @@ export type CustodyCap = Brand<
     readonly scope: CustodyScope;
   },
   "CustodyCap"
+>;
+
+export type SigningCustodyScope = Extract<
+  CustodyScope,
+  { readonly kind: "sign-market-tx" | "sign-account-tx" }
+>;
+
+export type CustodyScopeTxKind<TScope extends SigningCustodyScope> =
+  TScope extends { readonly txKinds: readonly (infer TKind)[] }
+    ? Extract<TKind, TxKind>
+    : never;
+
+export type CustodyScopeTxIntent<TScope extends SigningCustodyScope> = TxIntent<
+  CustodyScopeTxKind<TScope>
 >;

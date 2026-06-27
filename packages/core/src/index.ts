@@ -81,11 +81,26 @@ export type {
   AccountScopedTxKind,
   CustodyCap,
   CustodyScope,
+  CustodyScopeTxIntent,
+  CustodyScopeTxKind,
   InviteCap,
   MarketScopedTxKind,
   ResolverCap,
+  SigningCustodyScope,
   WagerCap,
 } from "./capabilities.js";
+export {
+  parseSuiRpcUrl,
+  tryParseSuiRpcUrl,
+  type HostedNetworkEnv,
+  type HostedNetworkFixture,
+  type LocalNetworkFixture,
+  type NetworkFixture,
+  type NetworkForEnv,
+  type PairmarketEnv,
+  type SuiNetwork,
+  type SuiRpcUrl,
+} from "./network.js";
 export {
   CustodyStateError,
   isCustodyState,

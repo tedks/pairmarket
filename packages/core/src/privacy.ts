@@ -20,7 +20,12 @@ export type SealCiphertext<TPlaintext> = Brand<
   readonly ["SealCiphertext", TPlaintext]
 >;
 
-export type Plaintext<T> = Brand<T, "Plaintext">;
+export type Plaintext<T> = Brand<
+  {
+    readonly plaintext?: never;
+  },
+  readonly ["Plaintext", T]
+>;
 
 export type SealDerivedKey = Brand<Uint8Array, "SealDerivedKey">;
 
