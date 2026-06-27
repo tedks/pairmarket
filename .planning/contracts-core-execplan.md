@@ -29,25 +29,34 @@ gracefully; this cannot.
 
 - [x] (2026-06-27Z) Author this ExecPlan from design.md and the
   move-object-model sketch.
-- [ ] Scaffold `contracts/pairmarket/` with `Move.toml`, `sources/`, and
-  `tests/` directory layout.
-- [ ] Implement `market.move` with `Market<T>`, `InviteTicket`,
-  `Position<T>`, `Config`, `AdminCap`, lifecycle state constants,
-  outcome constants, error codes, and events.
-- [ ] Implement entry functions: `create_market`, `record_subject_consent`,
-  `mint_invite`, `place`, `lock`, `submit_attestation`,
-  `submit_committee_verdict`, `finalize`, `claim`, `refund`, `cancel`,
-  `withdraw_fees`.
-- [ ] Implement helpers: payout math widening to `u128`, share accounting,
-  invite consumption, position single-claim mutation.
-- [ ] Write `tests/market_tests.move` covering lifecycle happy path,
-  cross-market reject, single-claim, fee cap, outcome validity,
-  cancellation refund, and binary escrow conservation.
-- [ ] Attempt `sui move build` and `sui move test` against the locally
-  available Sui CLI; record exact output and gap to the design's
-  pinned toolchain version.
-- [ ] Open a draft PR targeting `agent/codex-4b7333ab` (design PR #1)
-  or `agent/scaffold-toolchain` once that branch exists.
+- [x] (2026-06-27Z) Scaffold `contracts/pairmarket/` with `Move.toml`,
+  `sources/`, and `tests/` directory layout.
+- [x] (2026-06-27Z) Implement `market.move` with `Market<T>`,
+  `InviteTicket`, `Position<T>`, `Config`, `AdminCap`, lifecycle state
+  constants, outcome constants, error codes, and events.
+- [x] (2026-06-27Z) Implement entry functions: `create_market`,
+  `record_subject_consent`, `mint_invite`, `place`, `lock`,
+  `submit_attestation`, `open_challenge`, `submit_committee_verdict`,
+  `finalize`, `claim`, `refund`, `cancel`, `withdraw_fees`, plus
+  admin `set_paused`/`set_fee_recipient`/`set_max_fee_bps`.
+- [x] (2026-06-27Z) Implement helpers: payout math widening to `u128`,
+  share accounting, invite consumption, position single-claim mutation.
+- [x] (2026-06-27Z) Write `tests/market_tests.move` covering the happy
+  path (YES resolves and pays), cancellation refund, double-claim
+  abort, unknown outcome abort, fee cap abort,
+  attestation-mismatch-resets-round + subsequent NO settle, and binary
+  escrow conservation under asymmetric stake.
+- [x] (2026-06-27Z) Run `sui move build` and `sui move test` against the
+  locally available Sui CLI `1.57.2-83e72a664e88`. Build succeeded and
+  all 7 unit tests passed. The build is informational because the
+  canonical toolchain gate (Nix flake pinning `mainnet-v1.73.2`) does
+  not yet exist on `agent/scaffold-toolchain`.
+- [ ] Open a draft PR targeting `agent/codex-4b7333ab` (design PR #1).
+  Will re-target to `agent/scaffold-toolchain` once that branch lands
+  the flake.
+- [ ] After the Nix flake exists, re-run `sui move build` and
+  `sui move test` through `nix develop --command` and replace the
+  smoke transcript below with the canonical one.
 
 ## Surprises & Discoveries
 
@@ -132,7 +141,48 @@ gracefully; this cannot.
 
 ## Outcomes & Retrospective
 
-To be filled in at completion.
+### Milestone 1: scaffold + green smoke build (2026-06-27)
+
+Delivered: a `contracts/pairmarket/` package implementing the binary
+pari-mutuel `Market<T>`, address-owned non-transferable `InviteTicket`
+and `Position<T>`, the eight-state lifecycle from `Proposed` through
+`Settled` (plus `Cancelled` and `Expired` terminals), subject co-
+attestation with mismatch handling, a per-market challenge window with
+a single-member committee verdict path, fee taken only on successful
+`YES`/`NO` settlement, O(1) claim and refund, and an admin
+`AdminCap`-guarded cancellation path. Seven unit tests cover the
+documented invariants.
+
+Gaps:
+
+- No Nix flake yet, so the build is not yet reproducible to the
+  design's `mainnet-v1.73.2` pin.
+- The dispute committee in the contract is single-signer for MVP. The
+  design specifies 3-of-5; threshold accumulation belongs to the
+  `pm-resolution-dispute-committee` issue and can be added without
+  changing the on-chain object model.
+- Challenge bonds are not yet implemented. `open_challenge` records the
+  challenger but does not collect a `Coin<T>` bond. This is a follow-up
+  tied to the bond-sizing decision in the resolution design.
+- No `Display` metadata for `Position<T>` / `InviteTicket`. Wallet UI
+  follow-up.
+- Read-only accessor coverage is incomplete (no `subject_a`,
+  `subject_b`, `consent_a`, `consent_b` getters). The indexer can read
+  these from the BCS-decoded shared object until they are added.
+
+Lessons learned:
+
+- Local Sui CLI compatibility is gnarly. Pinning an explicit framework
+  rev in `Move.toml` against the wrong CLI version causes the unit-test
+  VM to fail with `MISSING_DEPENDENCY` errors that point at the
+  framework's own code, not the user package. Letting the CLI auto-add
+  its co-shipped framework is correct for smoke builds; the canonical
+  pin must come from the toolchain (Nix flake) rather than the
+  manifest.
+- The Move 2024 `entry` modifier should not be combined with `public`
+  for these settlement entry points. `entry fun` (no `public`) keeps
+  the surface PTB-callable but blocks unintended Move-level composition
+  by other modules.
 
 ## Context and Orientation
 
@@ -339,7 +389,37 @@ from this branch.
 
 ## Artifacts and Notes
 
-Build and test transcripts are appended here as they are produced.
+Smoke transcript captured 2026-06-27 against `sui 1.57.2-83e72a664e88`.
+This is best-effort verification, not the canonical gate. The canonical
+gate is the Nix flake on `agent/scaffold-toolchain` pinning
+`mainnet-v1.73.2`; until that lands, treat the result below as
+informational.
+
+    $ sui --version
+    sui 1.57.2-83e72a664e88
+
+    $ cd contracts/pairmarket && sui move build
+    BUILDING pairmarket
+    (lint warnings only; exit 0)
+
+    $ sui move test
+    Running Move unit tests
+    [ PASS    ] pairmarket::market_tests::attestation_mismatch_resets_round
+    [ PASS    ] pairmarket::market_tests::binary_escrow_conservation
+    [ PASS    ] pairmarket::market_tests::cancel_refunds_full_stake_no_fee
+    [ PASS    ] pairmarket::market_tests::double_claim_aborts
+    [ PASS    ] pairmarket::market_tests::fee_cap_enforced
+    [ PASS    ] pairmarket::market_tests::happy_path_yes_resolves_pays
+    [ PASS    ] pairmarket::market_tests::unknown_outcome_aborts
+    Test result: OK. Total tests: 7; passed: 7; failed: 0
+
+The Move.toml omits an explicit `Sui` framework dependency. Modern Sui
+CLIs auto-add `Sui`, `MoveStdlib`, `SuiSystem`, and `Bridge` at versions
+matching the local CLI, which avoids the runtime/framework skew that
+fails the unit-test VM when an explicit rev disagrees with the local
+binary. The future Nix flake on `agent/scaffold-toolchain` should pin
+the CLI version directly; the manifest does not need an explicit
+framework rev.
 
 ## Interfaces and Dependencies
 
