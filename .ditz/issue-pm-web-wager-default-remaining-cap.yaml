@@ -1,0 +1,18 @@
+id: pm-web-wager-default-remaining-cap
+title: Clamp wager default to remaining invite cap
+desc: 'Follow-up from PR #10 council nits. After cumulative cap enforcement, a viewer
+  can have less than the default 0.5 SUI remaining. Clamp or initialize the wager
+  amount from remainingStakeMist so the form opens in a valid state when possible.'
+type: task
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T21:28:21-00:00
+references: []
+log_events:
+- time: 2026-06-27T21:28:21-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
