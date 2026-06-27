@@ -1,7 +1,15 @@
 [package]
 name = "pairmarket"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024.beta"
+# License is intentionally unset until the repo-level license decision lands.
+# This package is intended for canonical builds under a Nix-pinned Sui CLI
+# (target: mainnet-v1.73.2 per flake.nix). With newer Sui CLIs the
+# `Sui`, `MoveStdlib`, `SuiSystem`, and `Bridge` dependencies are added
+# automatically and version-matched to the local CLI, so we omit them
+# here.
+
+[dependencies]
 
 [addresses]
 pairmarket = "0x0"

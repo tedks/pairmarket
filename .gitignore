@@ -7,3 +7,7 @@ build/
 target/
 *.log
 .DS_Store
+
+# Sui Move package build artifacts.
+contracts/**/build/
+contracts/**/Move.lock
