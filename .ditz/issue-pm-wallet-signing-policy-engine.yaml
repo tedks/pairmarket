@@ -32,6 +32,12 @@ log_events:
   who: Ted Smith
   what: blocked by pm-move-object-version-pinning
   comment: ""
+- time: 2026-06-27T20:11:40-00:00
+  who: Ted Smith
+  what: commented
+  comment: Wallet/auth scaffold added a typed in-memory policy gate for prototype
+    signing intents. Remaining policy-engine work stays open for the tracked preview-hash
+    and Move object-version blockers.
 blocks:
 - pm-custodial-wallet-interface
 blocked_by:
