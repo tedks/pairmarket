@@ -1,0 +1,19 @@
+id: pm-resolution-mechanism
+title: Decide MVP relationship-market resolution mechanism
+desc: 'Choose and defend how private relationship markets resolve: eligible attestors,
+  subject self-report, challenge windows, evidence handling, griefing resistance,
+  appeal/finality, and what Move can enforce versus what remains off-chain. The design
+  doc should make one MVP recommendation and list deferred alternatives.'
+type: task
+component: resolution
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:13:12-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:13:12-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
