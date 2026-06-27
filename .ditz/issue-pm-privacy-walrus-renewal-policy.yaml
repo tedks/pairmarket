@@ -1,0 +1,19 @@
+id: pm-privacy-walrus-renewal-policy
+title: Walrus blob renewal policy by class
+desc: 'Decide which blob classes get perpetual renewal vs TTL on Walrus. Tradeoffs:
+  P4 evidence likely wants perpetual, P1 chat may TTL after N days, P3 drafts can
+  be local-only. Specify who pays (package vs user) and how renewal is triggered (cron,
+  on-read, on-market-close).'
+type: task
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:01-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:01-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
