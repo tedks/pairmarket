@@ -1,0 +1,18 @@
+id: pm-types-runtime-schema-choice
+title: Pick runtime schema library (zod/io-ts/valibot)
+desc: 'Pick the runtime schema library (zod, io-ts, or valibot) used to mint branded
+  values at the trust boundary. Criteria: bundle size, brand ergonomics (does the
+  inferred output type carry the brand?), error shape for HTTP responses, treeshakability.'
+type: task
+component: architecture
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:42-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:42-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
