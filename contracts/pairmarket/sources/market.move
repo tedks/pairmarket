@@ -80,6 +80,19 @@ module pairmarket::market {
     const ENotRefundable: u64 = 23;
     const ECommitteeEmpty: u64 = 24;
     const EZeroWinningShares: u64 = 25;
+    const EAttestTooLate: u64 = 26;
+    const EOverflow: u64 = 27;
+    const ESameSubject: u64 = 28;
+    const EBadDurations: u64 = 29;
+    const EVerdictAlreadySet: u64 = 30;
+    const EChallengerOnWinningSide: u64 = 31;
+    const EFeeBpsAboveOneHundredPercent: u64 = 32;
+    const EChallengeAlreadyOpen: u64 = 33;
+
+    /// 100% in basis points. The fee cap can never exceed this regardless
+    /// of `Config.max_fee_bps`.
+    const BPS_DENOM: u64 = 10_000;
+    const MAX_FEE_BPS_ABSOLUTE: u16 = 10_000;
 
     // ---- Configuration objects ----
 
@@ -295,6 +308,7 @@ module pairmarket::market {
         config: &mut Config,
         max_fee_bps: u16,
     ) {
+        assert!(max_fee_bps <= MAX_FEE_BPS_ABSOLUTE, EFeeBpsAboveOneHundredPercent);
         config.max_fee_bps = max_fee_bps;
     }
 
@@ -320,7 +334,12 @@ module pairmarket::market {
     ) {
         assert!(!config.paused, EMarketPaused);
         assert!(fee_bps <= config.max_fee_bps, EFeeCapExceeded);
+        // Absolute bound: prevents `fee > gross` even if Config is misconfigured.
+        assert!(fee_bps <= MAX_FEE_BPS_ABSOLUTE, EFeeBpsAboveOneHundredPercent);
         assert!(!vector::is_empty(&resolver_committee), ECommitteeEmpty);
+        // Subjects must be distinct so the two-subject co-attestation cannot be
+        // signed unilaterally by a single party.
+        assert!(subject_a != subject_b, ESameSubject);
 
         let now = clock::timestamp_ms(clock);
         // Lightweight monotonicity check on the timing fields. Off-chain
@@ -329,6 +348,13 @@ module pairmarket::market {
         assert!(earliest_attest_ms >= close_ms, EAttestTooEarly);
         assert!(resolution_deadline_ms >= earliest_attest_ms, EAttestTooEarly);
         assert!(dispute_deadline_ms >= resolution_deadline_ms, EAttestTooEarly);
+        // The challenge window must fit inside the resolution -> dispute span.
+        // This prevents arithmetic overflow on `opened_ms + challenge_window_ms`
+        // in `open_challenge`/`finalize` and keeps the dispute timeline coherent.
+        assert!(
+            challenge_window_ms <= dispute_deadline_ms - resolution_deadline_ms,
+            EBadDurations,
+        );
 
         let market = Market<T> {
             id: object::new(ctx),
@@ -470,14 +496,17 @@ module pairmarket::market {
             expires_ms,
         } = invite;
 
-        // Consume the invite. Any abort below leaves no ticket alive.
-        object::delete(invite_id);
-
+        // Validate first, then consume. A Move abort rolls back the
+        // object::delete below, so the ticket is only destroyed when the
+        // wager actually succeeds — guaranteeing single-use without
+        // burning the caller's ticket on a bad input.
         assert!(invite_market_id == market_id, EWrongMarket);
         assert!(grantee == sender, ENotInvitee);
-        assert!(now <= expires_ms, EInviteExpired);
+        assert!(now < expires_ms, EInviteExpired);
 
         assert!(outcome == OUTCOME_YES || outcome == OUTCOME_NO, EUnknownOutcome);
+
+        object::delete(invite_id);
 
         let amount = coin::value(&stake);
         assert!(amount > 0, EZeroStake);
@@ -552,7 +581,7 @@ module pairmarket::market {
         };
         ensure_attestation_phase(market, now);
         assert!(market.state == STATE_ATTESTATION_PENDING, EWrongState);
-        assert!(now <= market.resolution_deadline_ms, EAttestTooEarly);
+        assert!(now <= market.resolution_deadline_ms, EAttestTooLate);
 
         assert!(
             outcome == OUTCOME_YES || outcome == OUTCOME_NO || outcome == OUTCOME_INVALID,
@@ -617,10 +646,18 @@ module pairmarket::market {
         ctx: &mut TxContext,
     ) {
         assert!(market.state == STATE_CHALLENGE_WINDOW, EWrongState);
+        // STATE_CHALLENGE_WINDOW already implies no prior challenge succeeded
+        // (a successful open transitions to STATE_DISPUTED), but be explicit.
+        assert!(option::is_none(&market.challenger), EChallengeAlreadyOpen);
+
         let market_id = object::uid_to_inner(&market.id);
         assert!(position.market_id == market_id, EWrongMarket);
         let sender = tx_context::sender(ctx);
         assert!(position.owner == sender, ENotOwner);
+        // The challenger is contesting the matched outcome, so they cannot
+        // hold a position on the side that would otherwise win. Subjects can
+        // still challenge if they also hold a losing position.
+        assert!(position.outcome != market.matched_outcome, EChallengerOnWinningSide);
 
         let now = clock::timestamp_ms(clock);
         let opened_ms = *option::borrow(&market.challenge_opened_ms);
@@ -638,6 +675,9 @@ module pairmarket::market {
         ctx: &mut TxContext,
     ) {
         assert!(market.state == STATE_DISPUTED, EWrongState);
+        // First-verdict-wins for MVP. A 3-of-5 threshold scheme will replace
+        // this; the design issue is pm-resolution-dispute-committee.
+        assert!(market.committee_verdict == OUTCOME_UNSET, EVerdictAlreadySet);
         assert!(
             outcome == OUTCOME_YES || outcome == OUTCOME_NO || outcome == OUTCOME_INVALID,
             EUnknownOutcome,
@@ -661,13 +701,22 @@ module pairmarket::market {
     }
 
     /// Finalize after the challenge window or after a committee verdict.
-    /// May also expire a market if subjects never matched by deadline.
+    /// Also expires markets stranded because subjects never attested or
+    /// never matched: Trading/Locked/AttestationPending past the resolution
+    /// deadline all route to refund-only `STATE_EXPIRED`. This prevents
+    /// participant escrow from being held indefinitely by an inactive
+    /// subject pair and keeps refund as the only available payout.
     entry fun finalize<T>(market: &mut Market<T>, clock: &Clock) {
         let now = clock::timestamp_ms(clock);
         let market_id = object::uid_to_inner(&market.id);
 
-        // Expiry path: stuck in AttestationPending past resolution deadline.
-        if (market.state == STATE_ATTESTATION_PENDING) {
+        // Stranded pre-attestation: Trading/Locked/AttestationPending after
+        // the resolution deadline expire to refund-only.
+        if (
+            market.state == STATE_TRADING ||
+            market.state == STATE_LOCKED ||
+            market.state == STATE_ATTESTATION_PENDING
+        ) {
             assert!(now > market.resolution_deadline_ms, EAttestTooEarly);
             market.state = STATE_EXPIRED;
             event::emit(MarketExpired { market_id });
@@ -867,11 +916,12 @@ module pairmarket::market {
 
     // ---- Helpers ----
 
-    /// Widening multiply-divide that aborts if the result exceeds u64.
+    /// Widening multiply-divide that aborts if the divisor is zero or the
+    /// result exceeds u64.
     fun mul_div_u64(a: u64, b: u64, c: u64): u64 {
         assert!(c > 0, EZeroWinningShares);
         let wide = (a as u128) * (b as u128) / (c as u128);
-        assert!(wide <= (18_446_744_073_709_551_615u128), EZeroWinningShares);
+        assert!(wide <= (18_446_744_073_709_551_615u128), EOverflow);
         (wide as u64)
     }
 
