@@ -23,6 +23,13 @@ export const networkByEnv = {
   prod: "mainnet",
 } as const satisfies Record<PairmarketEnv, SuiNetwork>;
 
+const SUI_NETWORKS = new Set<string>([
+  "localnet",
+  "devnet",
+  "testnet",
+  "mainnet",
+]);
+
 export type NetworkForEnv<TEnv extends PairmarketEnv> =
   (typeof networkByEnv)[TEnv];
 
@@ -112,4 +119,20 @@ export function parseSuiRpcUrl(raw: unknown): SuiRpcUrl {
 
 export function tryParseSuiRpcUrl(raw: unknown): ParseResult<SuiRpcUrl> {
   return tryParse(parseSuiRpcUrl, raw);
+}
+
+export function parseSuiNetwork(raw: unknown): SuiNetwork {
+  if (typeof raw !== "string" || !SUI_NETWORKS.has(raw)) {
+    throw parseError(
+      "invalid_sui_network",
+      "SuiNetwork must be localnet, devnet, testnet, or mainnet",
+      raw,
+    );
+  }
+
+  return raw as SuiNetwork;
+}
+
+export function tryParseSuiNetwork(raw: unknown): ParseResult<SuiNetwork> {
+  return tryParse(parseSuiNetwork, raw);
 }

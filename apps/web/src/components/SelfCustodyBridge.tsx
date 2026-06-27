@@ -5,8 +5,8 @@ import {
   useCurrentWallet,
   useWalletConnection,
 } from "@mysten/dapp-kit-react";
-import { parseSuiAddress } from "@pairmarket/core";
 import { getCustody, setCustody } from "../mock/store.ts";
+import { nextSelfCustodyState } from "../self-custody.ts";
 
 export function SelfCustodyBridge(): JSX.Element | null {
   const account = useCurrentAccount();
@@ -15,19 +15,13 @@ export function SelfCustodyBridge(): JSX.Element | null {
   const connection = useWalletConnection();
 
   useEffect(() => {
-    if (connection.isConnected && account) {
-      setCustody({
-        kind: "self-custody",
-        address: parseSuiAddress(account.address),
-        walletName: wallet?.name ?? "Sui wallet",
-        network,
-      });
-      return;
-    }
-
-    if (getCustody().kind === "self-custody") {
-      setCustody({ kind: "anonymous" });
-    }
+    const next = nextSelfCustodyState(getCustody(), {
+      connected: connection.isConnected && account !== null,
+      address: account?.address,
+      walletName: wallet?.name,
+      network,
+    });
+    if (next !== null) setCustody(next);
   }, [account, connection.isConnected, network, wallet?.name]);
 
   return null;

@@ -16,7 +16,9 @@
   --radius: 6px;
   --radius-lg: 10px;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --sans: ui-sans-serif, system-ui, -apple-system, "Inter", "Helvetica Neue", sans-serif;
+  --sans:
+    ui-sans-serif, system-ui, -apple-system, "Inter", "Helvetica Neue",
+    sans-serif;
 }
 
 @media (prefers-color-scheme: light) {
@@ -106,6 +108,19 @@ button {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+.wallet-select {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 0 12px;
+  font: inherit;
+}
+.auth-error {
+  color: var(--bad);
+  font-size: 0.78rem;
 }
 .viewer-switcher {
   display: flex;

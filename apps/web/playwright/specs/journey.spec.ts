@@ -65,6 +65,22 @@ test.describe("pairmarket prototype journey", () => {
     await expect(page.getByText("testnet", { exact: true })).toBeVisible();
   });
 
+  test("self-custody sign-out returns to anonymous and clears wallet storage", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByTestId("connect-wallet").click();
+    await expect(page.getByTestId("custody-self")).toBeVisible();
+
+    await page.getByTestId("custody-self").click();
+    await expect(page.getByTestId("connect-wallet")).toBeVisible();
+    await expect(page.getByTestId("sign-in-twitter")).toBeVisible();
+    const storedWallet = await page.evaluate(() =>
+      localStorage.getItem("pairmarket:selected-wallet-and-address"),
+    );
+    expect(storedWallet).toBeNull();
+  });
+
   test("end-to-end: consent → wager → attest → settle → claim", async ({
     page,
   }) => {
