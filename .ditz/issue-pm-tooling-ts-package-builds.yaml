@@ -1,0 +1,18 @@
+id: pm-tooling-ts-package-builds
+title: Add package build outputs and TS project references
+desc: 'PR #5 exports placeholder TypeScript source directly for typecheck-only scaffolding.
+  Before runnable services consume workspace packages at runtime, add build outputs
+  and per-package TypeScript project references.'
+type: task
+component: tooling
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T06:57:08-00:00
+references: []
+log_events:
+- time: 2026-06-27T06:57:08-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
