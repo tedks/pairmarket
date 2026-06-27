@@ -9,8 +9,8 @@ type: feature
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-27T22:02:21-00:00
 references: []
 log_events:
@@ -22,3 +22,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T22:38:12-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged PR #11 (de6cae8): self-custody wallet sign-in, hardened custody
+    precedence/disconnect handling, and journey/runtime tests.'
