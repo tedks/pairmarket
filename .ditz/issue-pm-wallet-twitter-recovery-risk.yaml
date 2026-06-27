@@ -1,0 +1,18 @@
+id: pm-wallet-twitter-recovery-risk
+title: Design Twitter account recovery and takeover handling
+desc: Define how wallet recovery works when a Twitter account is lost, renamed, suspended,
+  or compromised. Include lockout, cooldown, secondary proof, support escalation,
+  and limits of recovery promises.
+type: task
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:19:32-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:19:32-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
