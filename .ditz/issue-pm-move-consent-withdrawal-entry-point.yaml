@@ -1,0 +1,19 @@
+id: pm-move-consent-withdrawal-entry-point
+title: Move entry point for subject withdrawing consent mid-Trading
+desc: "Per ADR 0001 \xA71: docs/design.md lifecycle lists Cancelled as a terminal
+  state and says 'Subject withdraws consent mid-market: market cancels and refunds'
+  (docs/design.md:688) but does not name a Move entry point for it. Specify the entry
+  point, the authority that may call it, and add the corresponding TxIntent.kind."
+type: feature
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T07:04:10-00:00
+references: []
+log_events:
+- time: 2026-06-27T07:04:10-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
