@@ -56,7 +56,10 @@ export interface DecryptAuditEvent {
   // what was requested
   policy_kind: PolicyKind;   // P1Participant | P2Subject | P3Draft
                              // | P4Evidence
-  scope_id: Sha256;          // hashed Market or User object id
+  policy_phase: PolicyPhase; // "n_a" for P1/P2/P3;
+                             // "pre_settle" | "post_settle" for P4
+  scope_id: ObjectId;        // raw Market or User object id;
+                             // see note below on why this is not hashed
   policy_epoch: u32;
   blob_id: WalrusBlobId;     // public Walrus identifier
   ciphertext_digest: Sha256; // SHA-256 of the ciphertext envelope
@@ -74,6 +77,7 @@ export interface DecryptAuditEvent {
         // one of: not_member | wrong_epoch | scope_mismatch
         //       | digest_mismatch | aad_mismatch | key_server_refused
         //       | rate_limited | account_locked
+        //       | p4_pre_settle_non_resolver
       };
 
   // diagnostics
@@ -84,11 +88,29 @@ export interface DecryptAuditEvent {
 }
 ```
 
-The `scope_id` is the SHA-256 of the on-chain object id, not the raw
-id. The raw id is public on Sui, but hashing in the log keeps the log
-table from being trivially joinable to other Sui data by an
-unprivileged log reader. Operators with chain access can still
-correlate when they need to.
+Schema invariants (enforced at construction):
+
+- `decision.tag == "granted"` implies `account_owner_kind != "locked"`.
+  A locked account cannot produce a successful decrypt.
+- `policy_phase == "n_a"` iff `policy_kind` is `P1Participant`,
+  `P2Subject`, or `P3Draft`. `P4Evidence` events MUST carry
+  `pre_settle` or `post_settle`, taken from the market's lifecycle
+  state at the moment of decrypt and committed to the audit row
+  alongside the decrypt result. This is what makes the policy-flip
+  auditable instead of collapsing both halves under one label.
+
+Why `scope_id` is raw, not hashed (revised from the prior draft):
+the Walrus envelope header carries `policy: { kind, scope_id,
+epoch }` in the clear
+(`.planning/subagents/seal-walrus-privacy.md:64-78`). Any log reader
+who has `blob_id` can fetch the public ciphertext from Walrus and
+read `scope_id` plain. An unsalted-hash in the log table therefore
+adds operator friction without adversarial benefit, and gives the
+false impression that joins to Sui require chain access. The
+correct gate is the log-table access control (see §4), not field
+hashing. If a future revision needs to break the join, use a keyed
+PRF whose key lives in a separate trust zone — but that comes with
+the cost of a resolver table and is not part of this ADR.
 
 ### 2. Prohibited log fields
 
@@ -109,30 +131,77 @@ type MUST NOT carry, and the audit logger MUST NOT accept, any of:
 
 The "shall not log plaintext" rule is the kind of rule that holds for
 six months and then breaks at 3 AM. The architecture has to do the
-work, not the policy text.
+work, not the policy text — but the architecture cannot do *all* the
+work in TypeScript. This section is precise about what the type
+system catches and what falls to lint, code review, and module
+boundaries.
 
-- The decrypt code path returns `Plaintext<T>` (a branded type from
-  `packages/core`). The audit logger accepts only a `LoggableValue`
-  bound. `Plaintext<T>` does not implement `LoggableValue`. Passing
-  one to the logger is a compile error.
-- The HKDF output and the AEAD content key are wrapped in
-  `Secret<KeyMaterial>`. Its `toString` returns `"<redacted>"`; its
-  JSON serializer throws. Tracing/span attribute APIs accept only
-  `LoggableValue`, which `Secret` likewise does not implement.
-- `Plaintext<T>` lives only on the request scope. It is not written
-  to disk, queue, or trace span attribute. It is dropped before the
-  response handler returns; the linter forbids capturing it in a
-  closure that outlives the request.
-- Error paths in the decrypt module use `Result<Plaintext<T>,
-  DecryptError>`. `DecryptError` is `Display`-safe and carries only
-  enum-shaped failure data; it never contains plaintext or key
-  material. Stack traces are scrubbed of any captured locals before
-  they leave the process.
+What the type system catches:
+
+- **The audit logger is the closed surface.** Its signature is
+  `audit(event: SigningAuditEvent | DecryptAuditEvent): void`. Both
+  shapes are themselves built from `LoggableValue`s — primitive
+  IDs, enums, hashes, fixed-shape decision tags. Trying to put a
+  `Plaintext<T>` or `Secret<KeyMaterial>` into either schema is a
+  compile error because neither implements `LoggableValue`. This
+  guarantees the **audit tables** stay free of plaintext and key
+  material; it is the load-bearing claim, and it is enforceable in
+  TypeScript.
+- **`Plaintext<T>` is an opaque wrapper, not a brand on a string.**
+  The shape is `class Plaintext<T> { private constructor(private
+  readonly inner: T); use<R>(f: (raw: T) => R): R; }`. There is no
+  field access path, no `toString` returning the underlying value,
+  no `valueOf`, and (because the inner field is `private`)
+  structural destructuring does not reach it. Template-literal
+  interpolation (`` `${pt}` ``) sees the class instance and prints
+  `[object Plaintext]`, not the message. `JSON.stringify` returns
+  `{}`. This closes the most common accidental leak paths through
+  the *general* logger as well as the audit one.
+- **`Secret<KeyMaterial>` uses the same opaque-wrapper shape.**
+  Same private-field discipline; `toJSON` throws so an attempt to
+  serialize a containing object loudly fails rather than silently
+  emitting `"<redacted>"`-decorated key material.
+
+What the type system does *not* catch, and what carries the rest:
+
+- `console.log(plaintextInstance)` will print `Plaintext {}` (good)
+  but `console.log(plaintext.use(x => x))` extracts and prints the
+  raw value (bad). The `use` continuation is the only escape hatch,
+  and it is deliberately syntactically heavy so that uses of it are
+  greppable. An ESLint rule in the wallet/decrypt module
+  (`pm-types-no-plaintext-use-outside-response`) restricts
+  `.use(...)` to call sites within the response-serializer module.
+- `console.*`, `logger.info`, and other free-form text loggers are
+  not gated by `LoggableValue`. An ESLint rule in the
+  wallet/decrypt module bans those entirely; the only loggers
+  permitted are the typed `audit()` function and a `diag()`
+  function whose signature also takes `LoggableValue` only.
+- OpenTelemetry span attributes, structured-error fields, and
+  process stdout in third-party libraries can all be leakage
+  surfaces. The decrypt module wraps third-party SDK calls so they
+  only receive `LoggableValue` arguments, and span-attribute setters
+  are typed against the same trait.
+
+Error paths in the decrypt module use `Result<Plaintext<T>,
+DecryptError>`. `DecryptError` is `Display`-safe and carries only
+enum-shaped failure data; it never contains plaintext or key
+material. Stack traces are scrubbed of any captured locals before
+they leave the process.
+
+`Plaintext<T>` lifetime: a `Plaintext<T>` is created at decrypt
+time, lives only on the request scope, and is consumed exactly once
+by the response serializer via `.use()`. After serialization the
+buffer is overwritten where the runtime permits. The wording in
+earlier drafts ("dropped before the response handler returns") was
+imprecise — the plaintext is consumed *by* the response handler so
+the response body can be sent; it is not retained past that point
+in any service-side state.
 
 ### 4. Retention and access
 
 - `DecryptAuditEvent` retention: 180 days hot. After 180 days, only
-  daily aggregates per `(user_id, policy_kind, decision)` survive.
+  daily aggregates per `(user_id, policy_kind, policy_phase,
+  decision)` survive.
 - Read access (hot): privacy-eng + ops on-call. Every read is itself
   recorded as a `LogAccessEvent` with the requesting operator id.
   Break-glass requires two-person approval.
@@ -141,6 +210,16 @@ work, not the policy text.
   returned. A decrypt success that we cannot record is treated as
   an incident; we do not silently degrade to "decrypt without
   logging".
+
+Retention rationale and the asymmetry with ADR 0001 (signing events
+at 365 days): decrypt events record what a user *read* of private
+content and are more sensitive than the corresponding signing
+events, which record actions that become public on Sui anyway.
+Shorter retention reduces the harm surface of an internal log
+breach. The two retentions are deliberately different and reviewed
+together each `policy_version` bump; if a future incident class
+requires the cross-table join past 180 days, that revision lands in
+both ADRs at once.
 
 ### 5. User-facing disclosure
 
@@ -162,14 +241,28 @@ The self-serve "Decrypt history" view shows the user's own
 It deliberately omits `seal_key_servers`, `threshold`, `policy_version`,
 and `duration_ms` — those are operational, not user-relevant, and
 including them gives a targeted observer a fingerprinting surface.
+Even with those fields hidden, the market resolution in the
+history view is itself fingerprintable if the user shares a
+screenshot, so the view is a sensitive route with step-up auth on
+its own.
 
 ### 6. Abuse signals (derived, not raw)
 
-Computed from `DecryptAuditEvent`s in a streaming pipeline:
+Computed from `DecryptAuditEvent`s in a streaming pipeline. "Baseline"
+means a per-user exponentially weighted moving average of decrypt
+rate over a configurable window (default 7-day half-life), recomputed
+nightly; the alert fires when the current window's rate exceeds the
+baseline by a configurable factor.
 
 - decrypts/min per user above baseline,
-- decrypts against markets where Move shows no interaction by the
-  user (membership table check vs decrypt target),
+- decrypts against markets where Move shows no membership for the
+  user at the current `policy_epoch` (membership table check vs
+  decrypt target),
+- **`P4Evidence` decrypts where `policy_phase == "pre_settle"` and
+  the user is not in the resolver/committee set** — this is the
+  case where the policy_phase field pays its rent; it is also a
+  refusal reason (`p4_pre_settle_non_resolver`) at request time,
+  but if a refusal stream spikes the same signal flags it,
 - decrypts during sessions tagged `Risk(High)`,
 - ratio of `refused` decisions per session above a threshold,
 - decrypts under operator break-glass after a meta-audit read.
@@ -196,8 +289,11 @@ Positive:
 
 - The audit log can be shared with on-call without becoming a
   second privacy channel; it carries no content.
-- The compile-time `LoggableValue` bound makes the "no plaintext
-  logging" rule architectural, not aspirational.
+- The compile-time `LoggableValue` bound makes the "no plaintext in
+  the audit table" rule architectural, not aspirational. The
+  opaque-wrapper shape of `Plaintext<T>` and `Secret<T>` extends
+  most of that guarantee to general-purpose loggers; ESLint rules
+  and module boundaries cover the remainder (see §3).
 - Users can see what the backend decrypted on their behalf without
   having to trust the operator's word.
 
@@ -235,8 +331,14 @@ Negative:
 
 - Which SEAL key-server set is queried, and how is it identified in
   `seal_key_servers` — `pm-privacy-key-server-set`.
-- How `P4Evidence` access is logged when the policy flips at
-  settlement — `pm-privacy-resolver-evidence-disclosure`.
-- Whether `scope_id` hashing in the log is worth the operator
-  inconvenience; alternative is plain object ids gated by stricter
-  log-read controls.
+- Exact `P4Evidence` policy-flip semantics at settlement — what
+  triggers the `pre_settle` → `post_settle` transition, and how a
+  late-arriving challenge re-opens the pre-settle phase —
+  `pm-privacy-resolver-evidence-disclosure`. The schema in §1
+  records the phase but the lifecycle rules belong in that ticket.
+- Whether the "Decrypt history" view needs an additional
+  fingerprinting defense beyond step-up auth — tracked in
+  `pm-privacy-decrypt-history-fingerprinting`.
+
+(Resolved in this ADR: `scope_id` hashing is dropped in favour of
+log-table access controls; see the note in §1.)
