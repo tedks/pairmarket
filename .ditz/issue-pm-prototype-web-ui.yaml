@@ -1,0 +1,20 @@
+id: pm-prototype-web-ui
+title: Build first prototype web UI with typed mock data
+desc: 'Vite + React + TS in apps/web. First viewport is the operational workspace
+  (market list, sign-in/wallet status). Surfaces: sign-in/custody, market list, create
+  draft, subject consent, invitee wager, settlement/claim. All IDs and tx specs parsed
+  through @pairmarket/core. Playwright journey test if it fits. Draft PR. Does not
+  depend on wallet-auth or core-harness branches landing.'
+type: feature
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:00:29-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:00:29-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
