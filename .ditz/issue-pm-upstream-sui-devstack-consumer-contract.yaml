@@ -25,5 +25,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T20:07:54-00:00
+  who: Ted Smith
+  what: commented
+  comment: Pairmarket wrapper validated against local upstream worktree /home/tedks/Projects/sui-devstack/agent/consumer-contract
+    providing localnet/sui-localnet.sh env/status/up. Upstream still owns merge/publish
+    of that contract before this pairmarket PR should be merged.
 blocks:
 - pm-thin-devstack-wrapper
