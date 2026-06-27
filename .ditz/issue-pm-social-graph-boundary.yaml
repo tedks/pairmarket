@@ -1,0 +1,18 @@
+id: pm-social-graph-boundary
+title: Define private invitation and social graph boundary
+desc: Decide how users become eligible invitees, how Twitter graph data is imported
+  or represented, how market subjects are referenced, what consent/visibility constraints
+  apply, and which social graph edges can be trusted enough for MVP admission control.
+type: task
+component: product
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:13:41-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:13:41-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
