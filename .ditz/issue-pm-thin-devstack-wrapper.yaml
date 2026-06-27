@@ -32,6 +32,13 @@ log_events:
   who: Ted Smith
   what: referenced scripts/devstack.sh
   comment: ""
+- time: 2026-06-27T20:08:08-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Implemented thin pairmarket wrapper: removed pairmarket-owned localnet
+    compose/topology from the PR tree, delegated up/down/reset/status/logs/env to
+    sui-devstack localnet/sui-localnet.sh, and kept pairmarket deployer/env/package-publish
+    outputs in scripts/devstack.sh and docs/devstack.md.'
 blocks:
 - pm-local-package-publish-layer
 blocked_by:
