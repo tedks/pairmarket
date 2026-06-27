@@ -1,0 +1,18 @@
+id: pm-local-devstack
+title: Set up local devstack for Sui contract testing
+desc: Add a local development network/test harness for exercising pairmarket contracts
+  against a local Sui network, with clear commands, ports/state locations, and documented
+  Walrus/SEAL limitations or stubs.
+type: task
+component: tooling
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T17:11:56-00:00
+references: []
+log_events:
+- time: 2026-06-27T17:11:56-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
