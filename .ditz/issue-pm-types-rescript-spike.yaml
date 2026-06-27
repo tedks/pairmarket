@@ -1,0 +1,19 @@
+id: pm-types-rescript-spike
+title: ReScript spike vs Sui/Walrus/SEAL SDKs
+desc: 'Time-box a ReScript spike against Sui/Walrus/SEAL SDKs to validate or kill
+  the ML option for real. Acceptance: a working create-market + place-wager flow in
+  ReScript with current SDK versions, or a written rejection citing the specific binding
+  gap. Blocks closure of pm-type-system-strategy.'
+type: task
+component: architecture
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:32-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:32-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
