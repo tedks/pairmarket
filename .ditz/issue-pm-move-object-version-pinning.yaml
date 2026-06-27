@@ -1,0 +1,20 @@
+id: pm-move-object-version-pinning
+title: Move object-version pinning for signed PTBs
+desc: "Per ADR 0001 \xA72 (On-chain precondition): the server-side getObject check
+  is advisory; safety against TOCTOU between the read and Move execution relies on
+  the Move entry point's own state assertions. Investigate adding an explicit object-version/digest
+  assertion argument to Move entry points so the signed PTB is bound to the version
+  the server preflighted against."
+type: feature
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T07:04:10-00:00
+references: []
+log_events:
+- time: 2026-06-27T07:04:10-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
