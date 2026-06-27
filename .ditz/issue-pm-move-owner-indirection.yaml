@@ -18,3 +18,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-06-27T07:04:17-00:00
+  who: Ted Smith
+  what: blocks pm-wallet-zklogin-migration
+  comment: ""
+blocks:
+- pm-wallet-zklogin-migration
