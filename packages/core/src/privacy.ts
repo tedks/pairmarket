@@ -55,6 +55,30 @@ export function usePlaintext<T, R>(
   return plaintext.use(f);
 }
 
+export class Secret<T> {
+  readonly #inner: T;
+
+  private constructor(inner: T) {
+    this.#inner = inner;
+  }
+
+  static of<T>(inner: T): Secret<T> {
+    return new Secret(inner);
+  }
+
+  use<R>(f: (raw: T) => R): R {
+    return f(this.#inner);
+  }
+
+  toJSON(): never {
+    throw new TypeError("Secret is not JSON-serializable");
+  }
+
+  get [Symbol.toStringTag](): string {
+    return "Secret";
+  }
+}
+
 export type SealDerivedKey = Brand<Uint8Array, "SealDerivedKey">;
 
 export type WalrusEnvelopeVersion = "PMBLOB/v1";

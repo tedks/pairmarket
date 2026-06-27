@@ -28,7 +28,10 @@ export {
   parseNonce,
   parsePolicyEpoch,
   parsePositionId,
+  parsePreviewHash,
   parseSealPolicyId,
+  parseSessionId,
+  parseSha256,
   parseSuiAddress,
   parseSuiObjectId,
   parseTxDigest,
@@ -43,7 +46,10 @@ export {
   tryParseNonce,
   tryParsePolicyEpoch,
   tryParsePositionId,
+  tryParsePreviewHash,
   tryParseSealPolicyId,
+  tryParseSessionId,
+  tryParseSha256,
   tryParseSuiAddress,
   tryParseSuiObjectId,
   tryParseTxDigest,
@@ -59,6 +65,9 @@ export {
   type PolicyEpoch,
   type PositionId,
   type SealPolicyId,
+  type PreviewHash,
+  type SessionId,
+  type Sha256,
   type SuiAddress,
   type SuiObjectId,
   type TxDigest,
@@ -76,7 +85,7 @@ export type {
   WalrusEnvelopeHeader,
   WalrusEnvelopeVersion,
 } from "./privacy.js";
-export { Plaintext, makePlaintext, usePlaintext } from "./privacy.js";
+export { Plaintext, Secret, makePlaintext, usePlaintext } from "./privacy.js";
 export type {
   AccountScopedTxKind,
   CustodyCap,
@@ -129,3 +138,4 @@ export type {
   TxSpecFor,
   WagerOutcome,
 } from "./tx.js";
+export { createTxIntent, isTxKind, parseTxKind } from "./tx.js";
