@@ -148,19 +148,72 @@ What the type system catches:
   material; it is the load-bearing claim, and it is enforceable in
   TypeScript.
 - **`Plaintext<T>` is an opaque wrapper, not a brand on a string.**
-  The shape is `class Plaintext<T> { private constructor(private
-  readonly inner: T); use<R>(f: (raw: T) => R): R; }`. There is no
-  field access path, no `toString` returning the underlying value,
-  no `valueOf`, and (because the inner field is `private`)
-  structural destructuring does not reach it. Template-literal
-  interpolation (`` `${pt}` ``) sees the class instance and prints
-  `[object Plaintext]`, not the message. `JSON.stringify` returns
-  `{}`. This closes the most common accidental leak paths through
-  the *general* logger as well as the audit one.
-- **`Secret<KeyMaterial>` uses the same opaque-wrapper shape.**
-  Same private-field discipline; `toJSON` throws so an attempt to
-  serialize a containing object loudly fails rather than silently
-  emitting `"<redacted>"`-decorated key material.
+  The shape is:
+
+  ```ts
+  export class Plaintext<T> {
+    readonly #inner: T;               // ECMAScript private, runtime-enforced
+    private constructor(inner: T) { this.#inner = inner; }
+    static of<T>(inner: T): Plaintext<T> { return new Plaintext(inner); }
+    use<R>(f: (raw: T) => R): R { return f(this.#inner); }
+    toJSON(): never {
+      throw new TypeError("Plaintext is not JSON-serializable");
+    }
+    get [Symbol.toStringTag]() { return "Plaintext"; }
+  }
+  ```
+
+  The runtime guarantees rest on three TypeScript/ECMAScript
+  semantics that the implementation MUST keep aligned:
+
+  1. `#inner` is an ECMAScript private field (not TypeScript
+     `private`). Runtime reflection — including `JSON.stringify`,
+     `Object.keys`, bracket access, and structural destructuring
+     — cannot reach it. `JSON.stringify` of a containing object
+     calls `Plaintext.toJSON()`, which throws; this loudly fails
+     attempts to serialize plaintext through any code path that
+     uses `JSON.stringify` (most general-purpose loggers do).
+     `JSON.stringify` directly on a `Plaintext` also throws.
+  2. `Symbol.toStringTag` makes
+     `Object.prototype.toString.call(pt)` and `String(pt)` return
+     `"[object Plaintext]"` instead of the default
+     `"[object Object]"`. Template-literal interpolation
+     (`` `${pt}` ``) routes through `String()` and shows the tag,
+     not the inner value.
+  3. The only accessor is the `use` continuation. There is no
+     `valueOf`, no `toString` returning `T`, and no public
+     getter. The `use` callsite is the deliberately greppable
+     escape hatch.
+
+  These properties together close the most common accidental leak
+  paths through the *general* logger as well as the audit one. If
+  the implementation drops `#inner` for TypeScript `private`, the
+  guarantee silently disappears — TypeScript `private` is a
+  compile-time check only, the runtime field is enumerable and
+  `JSON.stringify` will emit it. Code review and the implementing
+  package's tests MUST assert the runtime behavior, not just the
+  type signature.
+
+- **`Secret<KeyMaterial>` uses the same opaque-wrapper shape with
+  the same ECMAScript-private discipline:**
+
+  ```ts
+  export class Secret<T> {
+    readonly #inner: T;
+    private constructor(inner: T) { this.#inner = inner; }
+    static of<T>(inner: T): Secret<T> { return new Secret(inner); }
+    use<R>(f: (raw: T) => R): R { return f(this.#inner); }
+    toJSON(): never {
+      throw new TypeError("Secret is not JSON-serializable");
+    }
+    get [Symbol.toStringTag]() { return "Secret"; }
+  }
+  ```
+
+  Same caveat: TypeScript `private` is not enough; the
+  implementation MUST use the `#` private form, or the JSON
+  serializer of a containing object will silently emit the key
+  material.
 
 What the type system does *not* catch, and what carries the rest:
 

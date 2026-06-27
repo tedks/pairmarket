@@ -150,16 +150,31 @@ Specifics:
   compare-and-insert transaction against a reservation table keyed
   on `(user_id, scope, nonce)`, where `scope` is `market_id` or a
   per-kind sentinel for the null-market intents
-  (`migrate_custody`, `create_market`). The transaction conditionally
-  decrements remaining daily-spend and per-market caps and inserts
-  the nonce row in one step; failure of either condition aborts
-  signing. The reservation row is committed to durable storage
-  before any key material is touched, so two concurrent
-  `sign_and_submit` calls cannot both pass. On submit failure, the
-  reservation is released by an idempotent compensating write keyed
-  on `event_id`. Nonce rows older than 24h are garbage collected.
-  This replaces a "freshness check"; the previous wording was a
-  TOCTOU race.
+  (`migrate_custody`, `create_market`). The transaction
+  conditionally decrements remaining daily-spend and per-market
+  caps and inserts the nonce row in one step; failure of either
+  condition aborts signing. The reservation row is committed to
+  durable storage before any key material is touched, so two
+  concurrent `sign_and_submit` calls cannot both pass.
+
+  Compensation rule (asymmetric on purpose): on submit failure the
+  **spend-cap decrement is released** by an idempotent compensating
+  write keyed on `event_id` — the user did not actually spend.
+  The **nonce row is NOT released**. A submit that fails locally
+  may still confirm on-chain via validator delay, network retry, or
+  an equivocating relayer, and releasing the nonce would let a
+  duplicate sign produce a second submittable transaction with the
+  same `(user, scope, nonce)`. Nonces are therefore single-use
+  forever within their replay window regardless of submit outcome.
+  The replay window is bounded by GC: nonce rows are retained for
+  a window strictly greater than the envelope's
+  `expires_at_ms` ceiling (currently 5 minutes) by a safety margin
+  — the operational default is 24h. The relationship
+  `gc_window > max(expires_at_ms - issued_at_ms) + clock_skew_budget`
+  is what enforces safety, not the literal 24h.
+
+  This replaces the prior wording's "freshness check"; that wording
+  was a TOCTOU race.
 - **On-chain precondition (advisory).** Fresh `getObject` on the
   relevant `Market<T>` confirms the lifecycle phase the intent
   assumes (e.g. `place` requires `Market.state == Trading`; `claim`
@@ -388,7 +403,7 @@ This ADR therefore claims only:
 | `open_challenge`          | routine    | yes (bond)  | `ChallengeWindowOpen` |
 | `claim`                   | routine    | no          | `Settled` |
 | `refund`                  | routine    | no          | `Cancelled \| Expired \| InvalidRefund` |
-| `migrate_custody`         | high_risk  | gas only    | owner not already `self_custody` |
+| `migrate_custody`         | high_risk  | gas only    | owner not already `self_custody` (intended invariant; the Move call lands with `pm-move-owner-indirection`) |
 
 Anything not in the table cannot be signed by the wallet service.
 Move entry points that exist on-chain but are not in `TxIntent` are
