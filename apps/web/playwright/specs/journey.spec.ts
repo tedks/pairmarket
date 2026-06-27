@@ -143,4 +143,19 @@ test.describe("pairmarket prototype journey", () => {
     await expect(detail.getByText("Fae Shimizu")).toHaveCount(0);
     await expect(detail.getByText("Ben Okri")).toHaveCount(0);
   });
+
+  test("date markets require operationalization before resolution", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "New market" }).click();
+    await page.getByTestId("create-op-kind").selectOption("meet-by-date");
+    await page.getByTestId("create-op-deadline-days").fill("30");
+    await page.getByTestId("create-deadline-days").fill("7");
+
+    await expect(page.getByTestId("create-deadline-error")).toContainText(
+      "Operationalization deadline must be on or before the resolution deadline.",
+    );
+    await expect(page.getByTestId("create-submit")).toBeDisabled();
+  });
 });

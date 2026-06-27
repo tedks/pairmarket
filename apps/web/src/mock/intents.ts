@@ -140,6 +140,16 @@ export function createMarketDraft(
   state: AppState,
   input: CreateMarketInput,
 ): AppState {
+  if (
+    input.operationalization.kind !== "lasts-n-dates" &&
+    (input.operationalization.deadlineMs as number) >
+      (input.resolutionDeadlineMs as number)
+  ) {
+    throw new Error(
+      "operationalization deadline must be on or before resolution deadline",
+    );
+  }
+
   const id = nextMarketId(state);
   const subjectA: Subject = {
     role: "subject-a",

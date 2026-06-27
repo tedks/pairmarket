@@ -32,6 +32,10 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
   const [invitees, setInvitees] = useState<Set<UserId>>(new Set());
   const [stakeCapSui, setStakeCapSui] = useState(2);
   const [err, setErr] = useState<string | undefined>(undefined);
+  const deadlineOrderError =
+    opKind === "lasts-n-dates" || opDeadlineDays <= resolutionDeadlineDays
+      ? undefined
+      : "Operationalization deadline must be on or before the resolution deadline.";
 
   const canSubmit =
     title.trim().length > 0 &&
@@ -39,7 +43,8 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
     subjectB !== "" &&
     subjectA !== subjectB &&
     resolutionDeadlineDays > 0 &&
-    (opKind === "lasts-n-dates" || opDeadlineDays > 0);
+    (opKind === "lasts-n-dates" || opDeadlineDays > 0) &&
+    deadlineOrderError === undefined;
 
   return (
     <section className="create-market">
@@ -57,18 +62,20 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
           setErr(undefined);
           if (!canSubmit) return;
           try {
-            const opDeadlineMs = parseUnixMs(
-              (state.nowMs as number) + opDeadlineDays * 86_400_000,
-            );
             const resolutionDeadlineMs = parseUnixMs(
               (state.nowMs as number) + resolutionDeadlineDays * 86_400_000,
             );
             const op: OperationalizationKind =
               opKind === "lasts-n-dates"
                 ? { kind: "lasts-n-dates", n: nDates }
-                : opKind === "together-by-date"
-                  ? { kind: "together-by-date", deadlineMs: opDeadlineMs }
-                  : { kind: "meet-by-date", deadlineMs: opDeadlineMs };
+                : (() => {
+                    const deadlineMs = parseUnixMs(
+                      (state.nowMs as number) + opDeadlineDays * 86_400_000,
+                    );
+                    return opKind === "together-by-date"
+                      ? { kind: "together-by-date", deadlineMs }
+                      : { kind: "meet-by-date", deadlineMs };
+                  })();
             const next = createMarketDraft(state, {
               title,
               prompt,
@@ -227,6 +234,11 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
           </div>
         </fieldset>
 
+        {deadlineOrderError ? (
+          <p className="form-error" data-testid="create-deadline-error">
+            {deadlineOrderError}
+          </p>
+        ) : null}
         {err ? <p className="form-error">{err}</p> : null}
 
         <div className="form-actions">
