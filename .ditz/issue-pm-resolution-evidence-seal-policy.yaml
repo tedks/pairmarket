@@ -1,0 +1,19 @@
+id: pm-resolution-evidence-seal-policy
+title: SEAL policy predicates for evidence blobs
+desc: 'Specify the SEAL access policy on the per-attestation Walrus evidence blob.
+  Read grants: both subjects unconditionally, all participants unconditionally, dispute
+  committee conditional on a live ChallengeOpen capability object. Define the predicate,
+  the capability lifecycle, and revocation on dispute close.'
+type: task
+component: resolution
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:18:25-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:18:25-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
