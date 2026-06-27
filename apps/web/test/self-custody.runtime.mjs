@@ -12,11 +12,15 @@ function assert(condition, message) {
   }
 }
 
-const walletAddress = parseSuiAddress("0x123");
+const walletAddress = parseSuiAddress(
+  "0x0000000000000000000000000000000000000000000000000000000000000123",
+);
 const linked = {
   kind: "linked",
   sub: parseTwitterSub("twitter:ada"),
-  address: parseSuiAddress("0x456"),
+  address: parseSuiAddress(
+    "0x0000000000000000000000000000000000000000000000000000000000000456",
+  ),
   owner: { kind: "custodial", keyRef: parseKeyRef("kms:pairmarket/ada") },
 };
 

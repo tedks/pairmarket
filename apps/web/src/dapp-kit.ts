@@ -17,7 +17,6 @@ export const dAppKit = createDAppKit({
     new SuiGrpcClient({ network, baseUrl: GRPC_URLS[network] }),
   // Playwright uses the dev-only burner wallet; production relies on real wallets.
   enableBurnerWallet: import.meta.env.DEV,
-  slushWalletConfig: null,
   storageKey: WALLET_STORAGE_KEY,
 });
 

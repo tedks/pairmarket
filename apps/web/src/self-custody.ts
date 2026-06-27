@@ -20,6 +20,7 @@ export function nextSelfCustodyState(
     return current.kind === "self-custody" ? { kind: "anonymous" } : null;
   }
 
+  // Twitter custody has explicit precedence over wallet auto-reconnect.
   if (current.kind !== "anonymous" && current.kind !== "self-custody") {
     return null;
   }

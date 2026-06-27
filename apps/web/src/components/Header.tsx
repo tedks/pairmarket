@@ -26,7 +26,7 @@ type HeaderProps = {
 
 export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
   const [signingIn, setSigningIn] = useState(false);
-  const [selectedWalletIndex, setSelectedWalletIndex] = useState<number | null>(
+  const [selectedWalletName, setSelectedWalletName] = useState<string | null>(
     null,
   );
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -35,16 +35,22 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
   const account = useCurrentAccount();
   const wallet = useCurrentWallet();
   const connection = useWalletConnection();
-  const effectiveWalletIndex =
-    selectedWalletIndex !== null && wallets[selectedWalletIndex] !== undefined
-      ? selectedWalletIndex
-      : preferredWalletIndex(wallets);
+  const effectiveWalletName =
+    selectedWalletName !== null &&
+    wallets.some((candidate) => candidate.name === selectedWalletName)
+      ? selectedWalletName
+      : preferredWalletName(wallets);
 
   useEffect(() => {
-    setSelectedWalletIndex((current) => {
+    setSelectedWalletName((current) => {
       if (wallets.length === 0) return null;
-      if (current !== null && wallets[current] !== undefined) return current;
-      return preferredWalletIndex(wallets);
+      if (
+        current !== null &&
+        wallets.some((candidate) => candidate.name === current)
+      ) {
+        return current;
+      }
+      return preferredWalletName(wallets);
     });
   }, [wallets]);
 
@@ -64,19 +70,18 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
         signingIn={signingIn}
         accountAddress={account?.address}
         walletName={wallet?.name}
-        wallets={wallets.map((w, index) => ({ index, name: w.name }))}
-        selectedWalletIndex={effectiveWalletIndex}
+        wallets={wallets.map((w) => ({ name: w.name }))}
+        selectedWalletName={effectiveWalletName}
         walletError={walletError}
         connectingWallet={connection.isConnecting || connection.isReconnecting}
-        onSelectWallet={(index) => {
-          setSelectedWalletIndex(index);
+        onSelectWallet={(name) => {
+          setSelectedWalletName(name);
           setWalletError(null);
         }}
         onConnectWallet={async () => {
-          const selectedWallet =
-            effectiveWalletIndex === null
-              ? undefined
-              : wallets[effectiveWalletIndex];
+          const selectedWallet = wallets.find(
+            (candidate) => candidate.name === effectiveWalletName,
+          );
           if (selectedWallet === undefined) {
             setWalletError("No Sui wallet found");
             return;
@@ -103,11 +108,17 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
           }
         }}
         onSignOut={async () => {
-          try {
-            await dAppKit.disconnectWallet();
-          } catch {
+          if (connection.wallet !== null) {
+            try {
+              await dAppKit.disconnectWallet();
+            } catch {
+              setWalletError("Wallet disconnect failed");
+              return;
+            }
+          } else {
             localStorage.removeItem(WALLET_STORAGE_KEY);
           }
+          setWalletError(null);
           signOut();
         }}
       />
@@ -115,18 +126,26 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
   );
 }
 
-function preferredWalletIndex(
+function preferredWalletName(
   wallets: readonly { readonly name: string }[],
-): number | null {
+): string | null {
   if (wallets.length === 0) return null;
-  const burnerIndex = wallets.findIndex((w) =>
+  const burnerWallet = wallets.find((w) =>
     w.name.toLowerCase().includes("burner"),
   );
-  return burnerIndex >= 0 ? burnerIndex : 0;
+  return burnerWallet?.name ?? wallets[0]?.name ?? null;
 }
 
 function walletConnectErrorMessage(error: unknown): string {
-  if (error instanceof Error && /cancel/i.test(error.message)) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { readonly code?: unknown }).code
+      : undefined;
+  if (
+    code === 4001 ||
+    code === "4001" ||
+    (error instanceof Error && /cancel|reject|deni|abort/i.test(error.message))
+  ) {
     return "Wallet connection canceled";
   }
 
@@ -171,7 +190,7 @@ function CustodyPill({
   accountAddress,
   walletName,
   wallets,
-  selectedWalletIndex,
+  selectedWalletName,
   walletError,
   connectingWallet,
   onSelectWallet,
@@ -184,13 +203,12 @@ function CustodyPill({
   readonly accountAddress: string | undefined;
   readonly walletName: string | undefined;
   readonly wallets: readonly {
-    readonly index: number;
     readonly name: string;
   }[];
-  readonly selectedWalletIndex: number | null;
+  readonly selectedWalletName: string | null;
   readonly walletError: string | null;
   readonly connectingWallet: boolean;
-  readonly onSelectWallet: (index: number) => void;
+  readonly onSelectWallet: (name: string) => void;
   readonly onConnectWallet: () => Promise<void>;
   readonly onSignIn: () => void;
   readonly onSignOut: () => Promise<void>;
@@ -202,16 +220,13 @@ function CustodyPill({
           <select
             className="wallet-select"
             aria-label="Choose Sui wallet"
-            value={selectedWalletIndex ?? ""}
-            onChange={(e) => onSelectWallet(Number(e.target.value))}
+            value={selectedWalletName ?? ""}
+            onChange={(e) => onSelectWallet(e.target.value)}
             disabled={connectingWallet}
             data-testid="wallet-select"
           >
             {wallets.map((wallet) => (
-              <option
-                key={`${wallet.name}-${wallet.index}`}
-                value={wallet.index}
-              >
+              <option key={wallet.name} value={wallet.name}>
                 {wallet.name}
               </option>
             ))}
@@ -240,7 +255,7 @@ function CustodyPill({
           {signingIn ? "signing in…" : "Twitter custody"}
         </button>
         {walletError ? (
-          <span className="auth-error" role="status" data-testid="wallet-error">
+          <span className="auth-error" role="alert" data-testid="wallet-error">
             {walletError}
           </span>
         ) : null}
@@ -249,20 +264,27 @@ function CustodyPill({
   }
   if (custody.kind === "self-custody") {
     return (
-      <button
-        type="button"
-        className="custody-pill custody-pill-linked"
-        onClick={() => void onSignOut()}
-        title="Disconnect wallet"
-        data-testid="custody-self"
-      >
-        <span className="custody-pill-sub">
-          {walletName ?? custody.walletName}
-        </span>
-        <span className="custody-pill-addr">
-          {formatAddress(accountAddress ?? custody.address)}
-        </span>
-      </button>
+      <div className="auth-actions">
+        <button
+          type="button"
+          className="custody-pill custody-pill-linked"
+          onClick={() => void onSignOut()}
+          title="Disconnect wallet"
+          data-testid="custody-self"
+        >
+          <span className="custody-pill-sub">
+            {walletName ?? custody.walletName}
+          </span>
+          <span className="custody-pill-addr">
+            {formatAddress(accountAddress ?? custody.address)}
+          </span>
+        </button>
+        {walletError ? (
+          <span className="auth-error" role="alert" data-testid="wallet-error">
+            {walletError}
+          </span>
+        ) : null}
+      </div>
     );
   }
   if (custody.kind === "awaiting-oauth") {
