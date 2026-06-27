@@ -8,7 +8,7 @@ type: task
 component: wallet
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-06-27T05:13:29-00:00
 references: []
@@ -36,6 +36,10 @@ log_events:
 - time: 2026-06-27T05:19:43-00:00
   who: Ted Smith
   what: blocked by pm-wallet-gas-sponsorship-limits
+  comment: ""
+- time: 2026-06-27T23:44:21-00:00
+  who: Ted Smith
+  what: started
   comment: ""
 blocked_by:
 - pm-wallet-kms-hsm-choice
