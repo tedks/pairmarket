@@ -1,0 +1,18 @@
+id: pm-types-custody-keyref-abstraction
+title: KeyRef indirection for zkLogin migration
+desc: Pin the KeyRef indirection in CustodyState so the eventual migration to zkLogin
+  (or other self-custody) is a resolver swap behind KeyRef, not a rewrite of every
+  signing caller. Cross-refs pm-custodial-wallet-interface.
+type: task
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:51-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:51-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
