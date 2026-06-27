@@ -1,0 +1,19 @@
+id: pm-resolution-subject-bond
+title: v2 subject bond and slash on upheld challenge
+desc: MVP keeps subjects bondless to preserve the frictionless invitation UX, leaving
+  the only deterrent on lying subjects as off-chain reputation. Design a v2 with a
+  subject bond, slashing on upheld challenge, and a UX that does not break custodial
+  onboarding (e.g., bond funded by the inviter on the subject's behalf).
+type: task
+component: resolution
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:18:25-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:18:25-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
