@@ -1,0 +1,20 @@
+id: pm-move-owner-indirection
+title: Move OwnerIndirection so custody migration is O(1) per user
+desc: "Per ADR 0001 \xA76: docs/design.md keys Market.membership on address and treats
+  Position<T> as address-owned. Without a Move OwnerIndirection object that membership/positions
+  are keyed against, migrating a user from Custodial(KeyRef) to SelfCustody(SuiAddress)
+  requires per-market on-chain transitions. Specify the Move object model for an owner-indirection
+  handle and how it integrates with SEAL approval predicates."
+type: feature
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T07:04:10-00:00
+references: []
+log_events:
+- time: 2026-06-27T07:04:10-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
