@@ -1,0 +1,21 @@
+id: pm-devstack-structured-sui-json
+title: Parse Sui JSON output without Function/string anchoring
+desc: 'scripts/devstack.sh currently extracts fields from Sui CLI output by searching
+  for the first JSON brace and evaluating a JavaScript expression. Replace this with
+  a stricter structured parser for known command outputs so warnings or diagnostics
+  containing braces cannot mis-anchor parsing. Filed from PR #8 convergence nit; not
+  blocking because current successful Sui JSON output is clean and the failure path
+  no longer feeds json_field.'
+type: task
+component: tooling
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:33:33-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:33:33-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
