@@ -76,10 +76,6 @@ export function AccountPanel({ state, custody }: Props): JSX.Element {
                 <span className="kv-v mono">{custody.userId}</span>
               </div>
               <div className="kv">
-                <span className="kv-k">Session</span>
-                <span className="kv-v mono">{custody.sessionId}</span>
-              </div>
-              <div className="kv">
                 <span className="kv-k">Sui address</span>
                 <span className="kv-v mono">{custody.address}</span>
               </div>

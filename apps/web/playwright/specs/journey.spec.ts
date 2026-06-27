@@ -57,12 +57,14 @@ test.describe("pairmarket prototype journey", () => {
       accountPanel.getByText("linked", { exact: true }),
     ).toBeVisible();
     await expect(
-      accountPanel.getByText("twitter:ada", { exact: true }),
-    ).toHaveCount(2);
+      accountPanel.getByText("twitter:ada", { exact: true }).first(),
+    ).toBeVisible();
     await expect(
       accountPanel.getByText("custodial", { exact: true }),
     ).toBeVisible();
     await expect(accountPanel.getByText(/kms|keyRef/i)).toHaveCount(0);
+    await expect(accountPanel.getByText(/twitter_session/i)).toHaveCount(0);
+    await expect(accountPanel.getByText(/twitter:twitter/i)).toHaveCount(0);
   });
 
   test("self-custody wallet sign-in is the primary account path", async ({

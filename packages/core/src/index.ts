@@ -57,6 +57,7 @@ export {
   tryParseUserId,
   tryParseUnixMs,
   tryParseWalrusBlobId,
+  userIdFromTwitterSub,
   type InviteId,
   type KeyRef,
   type MarketId,

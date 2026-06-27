@@ -3,7 +3,7 @@ import {
   parseSessionId,
   parseSuiAddress,
   parseTwitterSub,
-  parseUserId,
+  userIdFromTwitterSub,
   type Nonce,
   type PublicAccountOwner,
   type SessionId,
@@ -45,8 +45,10 @@ export function createPrototypeTwitterCustodyClient(): TwitterCustodyClient {
       const sub = twitterSubForProfile(challenge.profile);
       return {
         sub,
-        userId: userIdForTwitterSub(sub),
+        userId: userIdFromTwitterSub(sub),
         sessionId: randomSessionId("twitter_session"),
+        // Prototype fixtures include the public account address. Production
+        // custody will return the provisioned address from the API instead.
         address: parseSuiAddress(challenge.profile.address),
         owner: { kind: "custodial" },
       };
@@ -56,10 +58,6 @@ export function createPrototypeTwitterCustodyClient(): TwitterCustodyClient {
 
 function twitterSubForProfile(profile: UserProfile): TwitterSub {
   return parseTwitterSub(`twitter:${profile.handle}`);
-}
-
-function userIdForTwitterSub(sub: TwitterSub): UserId {
-  return parseUserId(sub);
 }
 
 function randomNonce(prefix: string): Nonce {
