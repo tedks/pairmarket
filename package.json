@@ -1,0 +1,26 @@
+{
+  "name": "pairmarket",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": "11.9.0"
+  },
+  "scripts": {
+    "docs:lint": "markdownlint-cli2",
+    "fmt": "prettier --write \"**/*.{json,jsonc,yml,yaml,ts,tsx}\"",
+    "fmt:check": "prettier --check \"**/*.{json,jsonc,yml,yaml,ts,tsx}\"",
+    "move:build": "sui move build --path contracts/pairmarket --build-env mainnet",
+    "move:test": "sui move test --path contracts/pairmarket --build-env mainnet",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "verify": "pnpm fmt:check && pnpm typecheck && pnpm docs:lint && pnpm move:build && pnpm move:test"
+  },
+  "devDependencies": {
+    "@types/node": "26.0.1",
+    "markdownlint-cli2": "0.22.1",
+    "prettier": "3.8.5",
+    "typescript": "6.0.3"
+  }
+}

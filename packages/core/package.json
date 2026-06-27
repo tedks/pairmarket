@@ -1,0 +1,14 @@
+{
+  "name": "@pairmarket/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@mysten/seal": "1.2.3",
+    "@mysten/sui": "2.20.1",
+    "@mysten/walrus": "1.2.3"
+  }
+}

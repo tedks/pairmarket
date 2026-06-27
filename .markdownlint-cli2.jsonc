@@ -1,0 +1,17 @@
+{
+  "config": {
+    "MD013": false,
+    "MD024": {
+      "siblings_only": true,
+    },
+    "MD032": false,
+    "MD033": false,
+  },
+  "globs": [
+    "README.md",
+    "AGENTS.md",
+    "docs/**/*.md",
+    "!**/node_modules/**",
+    "!contracts/pairmarket/build",
+  ],
+}

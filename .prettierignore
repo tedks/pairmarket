@@ -1,0 +1,5 @@
+node_modules
+.direnv
+.git
+result
+contracts/pairmarket/build

@@ -1,0 +1,9 @@
+{
+  "name": "@pairmarket/wallet",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@pairmarket/core": "workspace:*"
+  }
+}
