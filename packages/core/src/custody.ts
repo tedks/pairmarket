@@ -1,4 +1,4 @@
-import type { KeyRef, Nonce, SuiAddress, TwitterSub } from "./ids";
+import type { KeyRef, Nonce, SuiAddress, TwitterSub } from "./ids.js";
 
 export type AccountOwner =
   | { readonly kind: "custodial"; readonly keyRef: KeyRef }

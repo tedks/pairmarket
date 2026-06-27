@@ -1,4 +1,4 @@
-import type { Brand } from "./brand";
+import type { Brand } from "./brand.js";
 import type {
   InviteId,
   MarketId,
@@ -8,7 +8,7 @@ import type {
   SuiAddress,
   TxDigest,
   WalrusBlobId,
-} from "./ids";
+} from "./ids.js";
 
 export type TxKind =
   | "create-market"

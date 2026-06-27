@@ -1,6 +1,6 @@
-import type { Brand } from "./brand";
-import type { MarketId, MistAmount, UserId } from "./ids";
-import type { TxKind } from "./tx";
+import type { Brand } from "./brand.js";
+import type { MarketId, MistAmount, UserId } from "./ids.js";
+import type { TxKind } from "./tx.js";
 
 export type InviteCap = Brand<
   {

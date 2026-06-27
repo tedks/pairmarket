@@ -10,7 +10,7 @@ export const toolchainPins = {
 
 export type ToolchainPins = typeof toolchainPins;
 
-export type { Brand, BrandName } from "./brand";
+export type { Brand, BrandName } from "./brand.js";
 export {
   ParseError,
   parseError,
@@ -19,7 +19,7 @@ export {
   type ParseIssue,
   type ParseResult,
   type Schema,
-} from "./validation";
+} from "./validation.js";
 export {
   parseInviteId,
   parseKeyRef,
@@ -66,7 +66,7 @@ export {
   type UnixMs,
   type UserId,
   type WalrusBlobId,
-} from "./ids";
+} from "./ids.js";
 export type {
   Plaintext,
   PolicyBound,
@@ -76,7 +76,7 @@ export type {
   WalrusEnvelopeAlg,
   WalrusEnvelopeHeader,
   WalrusEnvelopeVersion,
-} from "./privacy";
+} from "./privacy.js";
 export type {
   AccountScopedTxKind,
   CustodyCap,
@@ -85,14 +85,14 @@ export type {
   MarketScopedTxKind,
   ResolverCap,
   WagerCap,
-} from "./capabilities";
+} from "./capabilities.js";
 export {
   CustodyStateError,
   isCustodyState,
   requireCustodyState,
   type AccountOwner,
   type CustodyState,
-} from "./custody";
+} from "./custody.js";
 export type {
   AcceptInviteTxSpec,
   ClaimPayoutTxSpec,
@@ -111,4 +111,4 @@ export type {
   TxSpec,
   TxSpecFor,
   WagerOutcome,
-} from "./tx";
+} from "./tx.js";

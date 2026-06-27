@@ -1,4 +1,4 @@
-import type { Brand } from "./brand";
+import type { Brand } from "./brand.js";
 import type {
   Nonce,
   PolicyEpoch,
@@ -6,7 +6,7 @@ import type {
   SuiObjectId,
   UnixMs,
   WalrusBlobId,
-} from "./ids";
+} from "./ids.js";
 
 export type PolicyKind =
   | "participant"

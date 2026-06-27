@@ -1,5 +1,5 @@
-import type { Brand } from "./brand";
-import { parseError, type ParseResult, tryParse } from "./validation";
+import type { Brand } from "./brand.js";
+import { parseError, type ParseResult, tryParse } from "./validation.js";
 
 export type UserId = Brand<string, "UserId">;
 export type TwitterSub = Brand<string, "TwitterSub">;
@@ -80,7 +80,11 @@ export function tryParseInviteId(raw: unknown): ParseResult<InviteId> {
 }
 
 export function parseWalrusBlobId(raw: unknown): WalrusBlobId {
-  return parseOpaqueToken(raw, "WalrusBlobId", VISIBLE_TOKEN_RE) as WalrusBlobId;
+  return parseOpaqueToken(
+    raw,
+    "WalrusBlobId",
+    VISIBLE_TOKEN_RE,
+  ) as WalrusBlobId;
 }
 
 export function tryParseWalrusBlobId(raw: unknown): ParseResult<WalrusBlobId> {
@@ -88,7 +92,11 @@ export function tryParseWalrusBlobId(raw: unknown): ParseResult<WalrusBlobId> {
 }
 
 export function parseSealPolicyId(raw: unknown): SealPolicyId {
-  return parseOpaqueToken(raw, "SealPolicyId", VISIBLE_TOKEN_RE) as SealPolicyId;
+  return parseOpaqueToken(
+    raw,
+    "SealPolicyId",
+    VISIBLE_TOKEN_RE,
+  ) as SealPolicyId;
 }
 
 export function tryParseSealPolicyId(raw: unknown): ParseResult<SealPolicyId> {
@@ -162,13 +170,21 @@ function parseSuiHex(raw: unknown, label: string): `0x${string}` {
 
   const hex = raw.slice(2).toLowerCase().padStart(64, "0");
   if (/^0+$/.test(hex)) {
-    throw parseError("invalid_sui_hex", `${label} must not be the zero address`, raw);
+    throw parseError(
+      "invalid_sui_hex",
+      `${label} must not be the zero address`,
+      raw,
+    );
   }
 
   return `0x${hex}`;
 }
 
-function parseOpaqueToken(raw: unknown, label: string, pattern: RegExp): string {
+function parseOpaqueToken(
+  raw: unknown,
+  label: string,
+  pattern: RegExp,
+): string {
   if (typeof raw !== "string" || !pattern.test(raw)) {
     throw parseError(
       "invalid_opaque_token",
@@ -181,11 +197,7 @@ function parseOpaqueToken(raw: unknown, label: string, pattern: RegExp): string 
 }
 
 function parseNonNegativeSafeInteger(raw: unknown, label: string): number {
-  if (
-    typeof raw !== "number" ||
-    !Number.isSafeInteger(raw) ||
-    raw < 0
-  ) {
+  if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) {
     throw parseError(
       "invalid_nonnegative_integer",
       `${label} must be a non-negative safe integer`,

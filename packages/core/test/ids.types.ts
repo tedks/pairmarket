@@ -8,7 +8,7 @@ import {
   type PolicyBound,
   type SealCiphertext,
   type SuiAddress,
-} from "../src/index";
+} from "../src/index.js";
 
 const address = parseSuiAddress("0x2");
 const market = parseMarketId("0x2");
