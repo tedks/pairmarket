@@ -1,0 +1,18 @@
+id: pm-wallet-signing-policy-engine
+title: Specify custodial signing policy engine
+desc: Define which typed transaction intents the backend may sign, how max spend and
+  market scope are enforced, how session/user consent is represented, and how rejected
+  requests are audited.
+type: task
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:19:32-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:19:32-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
