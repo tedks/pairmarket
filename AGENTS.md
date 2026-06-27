@@ -79,3 +79,34 @@ ExecPlans for non-trivial work follow the format in
   an ML-family language (OCaml, Rescript, Reason) where types can carry
   invariants — pick in the design doc with explicit tradeoffs, not by
   default.
+
+<!-- ditz:onboard -->
+## Issue tracking with ditz
+
+This project uses `ditz` (not beads). Issues are plain-text YAML on the
+`ditz-metadata` git branch; the `ditz` CLI reads and writes them.
+
+The loop:
+- `ditz ready` - what to work on now (unblocked, ranked by how much each unblocks)
+- `ditz start <id>` - mark in progress
+- `ditz close <id> --reason "..."` - close with why (or `--wontfix` / `--reorg`)
+- `ditz reopen <id>` - revive a closed issue
+
+Create / inspect:
+- `ditz add "title" -t bugfix|feature|task -c <component> --desc "..."`
+- `ditz show <id>` - `ditz list --status unstarted|in_progress|paused|closed` - `ditz search <q>`
+- `--json` on any command for machine output; `--ids-only` for just ids
+- ids: copy them from output; a unique prefix works (like git hashes);
+  `--id <name>` sets a deterministic id (re-creating with it is idempotent)
+
+Structure (there are no priority / epic / parent fields - urgency is derived,
+hierarchy is expressed in the graph):
+- grouping: `-c <component>` + `ditz list --component <c>`
+- sequencing: `ditz blocks <a> <b>` (a blocks b); an "epic" is just an issue
+  blocked by its members - it stays out of `ready` until they close
+- `ditz deps <id>` shows the dependency tree; `ditz deps --check` validates it
+
+Sync: `ditz sync` fetches/merges/pushes the metadata branch. See FORMAT.md for
+the file format and git model.
+
+<!-- /ditz:onboard -->
