@@ -1,0 +1,19 @@
+id: pm-privacy-resolver-evidence-disclosure
+title: Resolver evidence disclosure at settle
+desc: 'When a market settles, does the resolver''s P4 evidence flip to all-participants
+  automatically, or only on creator opt-in? Affects the RESOLVER_THEN_P policy state
+  machine: who is in the policy at which epoch, and whether the epoch bump on settle
+  is mandatory.'
+type: task
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:01-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:01-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
