@@ -25,5 +25,11 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T07:08:59-00:00
+  who: Ted Smith
+  what: blocked by pm-types-no-plaintext-use-outside-response
+  comment: ""
 blocks:
 - pm-privacy-policy-model
+blocked_by:
+- pm-types-no-plaintext-use-outside-response
