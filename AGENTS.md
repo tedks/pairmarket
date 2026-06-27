@@ -30,18 +30,46 @@ frontend/backend, `docs/` for design docs, `.planning/` for ExecPlans).
 
 ## Environment
 
-No flake yet — the design doc must specify the dev toolchain (Sui CLI
-version, Move framework, frontend stack) before any scaffolding is
-committed. Once a flake exists, run all tooling through it:
+The repo has a Nix flake for Phase 0 tooling. Run project tooling through it:
 
 ```bash
 nix develop --command <cmd>
 ```
 
+Phase 0 currently supports `x86_64-linux` only. The flake packages the Sui
+`mainnet-v1.73.2` Ubuntu x86_64 release used by CI; add platform-specific Sui
+tarballs before relying on `nix develop` on macOS or aarch64 machines.
+
+The flake supplies Node.js 24 and invokes pnpm through Corepack so the
+`packageManager` pin (`pnpm@11.9.0`) is honored. The first pnpm invocation may
+download that pinned pnpm release into the Corepack cache.
+
 ## Build and test
 
-Not yet defined. Each component PR must add its own quality gates and
-document the exact commands here once they exist.
+Install workspace dependencies:
+
+```bash
+nix develop --command pnpm install --frozen-lockfile
+```
+
+Run all Phase 0 gates:
+
+```bash
+nix develop --command pnpm verify
+```
+
+Individual gates:
+
+```bash
+nix develop --command pnpm fmt:check
+nix develop --command pnpm typecheck
+nix develop --command pnpm docs:lint
+nix develop --command pnpm move:build
+nix develop --command pnpm move:test
+```
+
+The Move gates use Sui `--build-env mainnet`, matching the Phase 0 mainnet
+toolchain pin in `docs/design.md`.
 
 ## Issue tracking (ditz, not beads)
 

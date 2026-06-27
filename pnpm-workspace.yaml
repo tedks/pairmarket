@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "services/*"
+minimumReleaseAgeExclude:
+  - "@mysten/seal@1.2.3"
+  - "@mysten/sui@2.20.1"
+  - "@mysten/walrus@1.2.3"
+  - prettier@3.8.5
