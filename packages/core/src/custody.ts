@@ -1,4 +1,5 @@
 import type { KeyRef, Nonce, SuiAddress, TwitterSub } from "./ids.js";
+import type { SuiNetwork } from "./network.js";
 
 export type AccountOwner =
   | { readonly kind: "custodial"; readonly keyRef: KeyRef }
@@ -12,6 +13,12 @@ export type AccountOwner =
 
 export type CustodyState =
   | { readonly kind: "anonymous" }
+  | {
+      readonly kind: "self-custody";
+      readonly address: SuiAddress;
+      readonly walletName: string;
+      readonly network: SuiNetwork;
+    }
   | { readonly kind: "awaiting-oauth"; readonly nonce: Nonce }
   | {
       readonly kind: "linked";

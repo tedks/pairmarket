@@ -101,7 +101,9 @@ export type {
 export { defineSigningCustodyScope } from "./capabilities.js";
 export {
   networkByEnv,
+  parseSuiNetwork,
   parseSuiRpcUrl,
+  tryParseSuiNetwork,
   tryParseSuiRpcUrl,
   type HostedNetworkEnv,
   type HostedNetworkFixture,
