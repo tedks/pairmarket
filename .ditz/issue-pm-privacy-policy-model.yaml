@@ -1,0 +1,19 @@
+id: pm-privacy-policy-model
+title: Specify SEAL policy and Walrus ACL model
+desc: Define which market data is public, participant-private, subject-visible, or
+  creator-only; how SEAL policy IDs bind to Walrus blobs and Move market objects;
+  revocation and invite changes; leakage through metadata, timing, payouts, or access
+  attempts; and the threat model boundaries.
+type: task
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:13:19-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:13:19-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
