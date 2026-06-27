@@ -1,0 +1,19 @@
+id: pm-resolution-kind-enum
+title: Initial closed enum of operationalization Kinds
+desc: 'Define the closed enum of operationalization Kinds the contract supports at
+  launch (LastsNDates, TogetherByDate, MeetByDate, ...). For each: bound parameters,
+  earliest-attestation rule, default resolution deadline, and which outcomes are valid.
+  Adding a Kind is a contract upgrade.'
+type: task
+component: resolution
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:18:26-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:18:26-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
