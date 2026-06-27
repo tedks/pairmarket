@@ -1,0 +1,19 @@
+id: pm-wallet-signing-replay-protection
+title: Replay protection for custodial signing intents
+desc: 'PR #9 records nonces in audit events but does not consume or persist them.
+  Implement per-user/per-session nonce replay protection for custodial signing intents,
+  define retry semantics, and add tests for duplicate nonces across accepted and rejected
+  decisions. Filed from PR #9 council review.'
+type: feature
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:58:30-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:58:30-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
