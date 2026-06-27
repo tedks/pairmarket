@@ -774,7 +774,7 @@ module pairmarket::market {
             return
         };
 
-        let fee = mul_div_u64(gross, (market.fee_bps as u64), 10_000);
+        let fee = mul_div_u64(gross, (market.fee_bps as u64), BPS_DENOM);
         // Drain both pools into a working balance, take fee out of it.
         let yes_pool = balance::withdraw_all(&mut market.yes_pool);
         let no_pool = balance::withdraw_all(&mut market.no_pool);

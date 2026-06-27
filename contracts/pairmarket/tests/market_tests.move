@@ -17,7 +17,6 @@
 #[test_only]
 module pairmarket::market_tests {
 
-    use std::option;
     use sui::clock::{Self, Clock};
     use sui::coin::{Self, Coin};
     use sui::test_scenario::{Self as ts, Scenario};
@@ -221,7 +220,7 @@ module pairmarket::market_tests {
     #[test]
     fun cancel_refunds_full_stake_no_fee() {
         let mut scenario = start_with_config();
-        let mut clock = make_clock(&mut scenario);
+        let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
         create_default_market(&mut scenario, &clock);
@@ -315,7 +314,7 @@ module pairmarket::market_tests {
     #[expected_failure(abort_code = 6, location = pairmarket::market)]
     fun unknown_outcome_aborts() {
         let mut scenario = start_with_config();
-        let mut clock = make_clock(&mut scenario);
+        let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
         create_default_market(&mut scenario, &clock);
@@ -572,7 +571,7 @@ module pairmarket::market_tests {
         // even if Paula keeps the ticket alive (no place on X), she cannot
         // exchange it for a position on a different market.
         let mut scenario = start_with_config();
-        let mut clock = make_clock(&mut scenario);
+        let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
         create_default_market(&mut scenario, &clock); // X
@@ -634,7 +633,7 @@ module pairmarket::market_tests {
         // Cross-market invariant: a Position bound to market X cannot be
         // refunded against a different (cancelled) market Y.
         let mut scenario = start_with_config();
-        let mut clock = make_clock(&mut scenario);
+        let clock = make_clock(&mut scenario);
 
         // --- Market X: create, consent, mint, place. ---
         ts::next_tx(&mut scenario, CREATOR);
