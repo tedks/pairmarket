@@ -7,8 +7,8 @@ type: task
 component: tooling
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-27T18:42:11-00:00
 references: []
 log_events:
@@ -49,6 +49,11 @@ log_events:
   comment: 'Opened draft replacement PR #8 against master: https://github.com/tedks/pairmarket/pull/8.
     It supersedes PR #6 rather than stacking on it because the final pairmarket diff
     should not carry generic localnet orchestration.'
+- time: 2026-06-27T20:34:18-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Fixed by PR #8, merged as 19f4d82; pairmarket now delegates generic Sui
+    localnet lifecycle to sui-devstack and owns only deployer/env/publish layers.'
 blocks:
 - pm-local-package-publish-layer
 blocked_by:
