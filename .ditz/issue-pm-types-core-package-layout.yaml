@@ -20,3 +20,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T06:31:00-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'agent/ts-core adds a source-only packages/core layout: src/brand.ts, validation.ts,
+    ids.ts, privacy.ts, capabilities.ts, custody.ts, tx.ts, index.ts, package README,
+    local tsconfig, and a type-level smoke test. Root workspace/package-manager wiring
+    and Move-generated decoder placement are intentionally left for the scaffold branch.'

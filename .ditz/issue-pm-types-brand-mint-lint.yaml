@@ -17,3 +17,10 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-06-27T06:31:00-00:00
+  who: Ted Smith
+  what: commented
+  comment: agent/ts-core does not implement the custom eslint rule because this worktree
+    has no scaffold or eslint setup. The initial core code keeps brand casts inside
+    parse* functions and adds a tsc smoke test; the lint rule remains required once
+    tooling lands.
