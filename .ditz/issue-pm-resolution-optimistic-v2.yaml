@@ -1,0 +1,19 @@
+id: pm-resolution-optimistic-v2
+title: v2 swap of multisig dispute path for optimistic oracle
+desc: Plan to replace the MVP 3-of-5 community multisig with an optimistic-oracle
+  finalizer once volume justifies it. Identify the bond curve, the dispute escalation
+  path, and what the contract interface change looks like so MVP markets remain finalizable
+  under the new mechanism.
+type: task
+component: resolution
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:18:26-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:18:26-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
