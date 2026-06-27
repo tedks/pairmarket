@@ -1,0 +1,20 @@
+id: pm-local-devstack-sui-173-runtime
+title: Make localnet package publish use a Sui 1.73-compatible runtime
+desc: The Docker localnet available from nearby projects runs Sui 1.67.3 and can publish
+  a minimal package, but the current pairmarket package fails VM verification there.
+  The pinned Sui mainnet-v1.73.2 native localnet path raises SIGILL on this host.
+  Provide a compatible localnet binary/image or adjust the contract/runtime target
+  so scripts/devstack.sh deploy can publish pairmarket end to end.
+type: task
+component: tooling
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T17:29:54-00:00
+references: []
+log_events:
+- time: 2026-06-27T17:29:54-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
