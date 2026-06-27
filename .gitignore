@@ -1,0 +1,9 @@
+/result
+/result-*
+.direnv/
+node_modules/
+dist/
+build/
+target/
+*.log
+.DS_Store
