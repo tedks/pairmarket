@@ -1,0 +1,61 @@
+# Pairmarket local Sui network.
+#
+# Consumes exact-tag images from the canonical sui-devstack repo:
+#   ~/Projects/sui-devstack/master
+#   https://github.com/tedks/sui-devstack
+#
+# To upgrade the Sui runtime, bump/rebuild there and update these tags. This
+# compose is intentionally the Sui-only slice; add SEAL/Walrus services once
+# pairmarket has policy/envelope code that can exercise them.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_DB: sui_indexer
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  sui-localnet:
+    image: ${PAIRMARKET_SUI_LOCALNET_IMAGE:-sui-devstack/sui-localnet:1.67.3-r1}
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      PG_USER: postgres
+      PG_PASSWORD: postgrespw
+      PG_DATABASE: sui_indexer
+      DEPLOY_LOG_DIR: /deploy-logs
+      STATE_DIR: /sui/state
+      LOCAL_UID: "${LOCAL_UID:-1000}"
+      LOCAL_GID: "${LOCAL_GID:-1000}"
+      RUST_LOG: info,sui_node=info,jsonrpsee=warn
+    ports:
+      - "${SUI_RPC_PORT:-9000}:9000"
+      - "${SUI_FAUCET_PORT:-9123}:9123"
+    volumes:
+      - ${PAIRMARKET_DOCKER_LOGS_DIR:-../.devstack/docker/logs}:/deploy-logs:rw
+      - ${PAIRMARKET_DOCKER_STATE_DIR:-../.devstack/docker/sui-state}:/sui/state:rw
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/sui-localnet-healthcheck.sh"]
+      # The sui-devstack healthcheck performs a real faucet dispense, so keep
+      # this cadence coarse rather than spending gas every few seconds.
+      interval: 60s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  pgdata:
+    name: pairmarket-devstack-pgdata
