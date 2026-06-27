@@ -1,0 +1,19 @@
+id: pm-resolution-subject-visibility-leakage
+title: Can subjects see inviter list during Trading
+desc: 'Define exactly what subjects see while a market is Trading: counts only, or
+  counts plus identities of inviters/participants. Specify the SEAL policy on the
+  participant roster blob and the on-chain commitment scheme that hides participant
+  addresses until settlement.'
+type: task
+component: resolution
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:18:25-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:18:25-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
