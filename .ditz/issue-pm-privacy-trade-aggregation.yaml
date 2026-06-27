@@ -1,0 +1,19 @@
+id: pm-privacy-trade-aggregation
+title: 'On-chain trade leakage: accept or mitigate'
+desc: 'Per-trade timing and size are visible on Sui and leak participant positions.
+  Decision: accept this leak for MVP (bucketed volume display only) or design a batching/commit-reveal
+  mitigation now. Influences whether EncryptedRef<P1Participant> extends to per-trade
+  memos or only to chat/comments.'
+type: task
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:02-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:02-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
