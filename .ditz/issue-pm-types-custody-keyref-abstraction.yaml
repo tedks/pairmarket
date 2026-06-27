@@ -7,8 +7,8 @@ type: task
 component: wallet
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-27T05:17:51-00:00
 references: []
 log_events:
@@ -20,3 +20,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T20:11:24-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Core and wallet scaffold now route custody through AccountOwner/KeyRef,
+    keep KeyRef internal to wallet provisioning, and expose only public account views
+    plus key fingerprints in signing audit events.
