@@ -38,8 +38,13 @@ log_events:
   comment: Wallet/auth scaffold added a typed in-memory policy gate for prototype
     signing intents. Remaining policy-engine work stays open for the tracked preview-hash
     and Move object-version blockers.
+- time: 2026-06-27T20:58:40-00:00
+  who: Ted Smith
+  what: blocked by pm-wallet-signing-audit-sink
+  comment: ""
 blocks:
 - pm-custodial-wallet-interface
 blocked_by:
 - pm-types-client-preview-hash
 - pm-move-object-version-pinning
+- pm-wallet-signing-audit-sink
