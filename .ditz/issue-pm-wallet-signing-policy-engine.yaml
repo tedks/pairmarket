@@ -42,9 +42,14 @@ log_events:
   who: Ted Smith
   what: blocked by pm-wallet-signing-audit-sink
   comment: ""
+- time: 2026-06-27T20:58:40-00:00
+  who: Ted Smith
+  what: blocked by pm-wallet-signing-replay-protection
+  comment: ""
 blocks:
 - pm-custodial-wallet-interface
 blocked_by:
 - pm-types-client-preview-hash
 - pm-move-object-version-pinning
 - pm-wallet-signing-audit-sink
+- pm-wallet-signing-replay-protection
