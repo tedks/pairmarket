@@ -2,8 +2,8 @@
 
 ADRs pin down load-bearing decisions made in
 [docs/design.md](../design.md) at a level of detail useful to the
-people who will implement and review code. The design doc says *what*
-and *why*; ADRs say *exactly how* at the API and audit-log level.
+people who will implement and review code. The design doc says _what_
+and _why_; ADRs say _exactly how_ at the API and audit-log level.
 
 ## Lifecycle
 
@@ -16,8 +16,9 @@ and *why*; ADRs say *exactly how* at the API and audit-log level.
 
 ## Index
 
-- [0001 — Wallet service boundary: typed transaction intents](0001-wallet-service-boundary.md)
-- [0002 — Custodial decrypt logging policy](0002-custodial-decrypt-logging.md)
+- [0001 — Runtime schema boundary for branded TypeScript primitives](0001-runtime-schema-boundary.md)
+- [0002 — Wallet service boundary: typed transaction intents](0002-wallet-service-boundary.md)
+- [0003 — Custodial decrypt logging policy](0003-custodial-decrypt-logging.md)
 
 ## Cross-references
 

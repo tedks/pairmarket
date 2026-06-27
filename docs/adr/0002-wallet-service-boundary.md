@@ -1,4 +1,4 @@
-# ADR 0001 — Wallet service boundary: typed transaction intents
+# ADR 0002 — Wallet service boundary: typed transaction intents
 
 - Status: Proposed
 - Date: 2026-06-27
@@ -33,7 +33,7 @@ reviewable code change.
 
 ### 1. The service signs typed intents, never bytes
 
-The wallet API accepts `TxIntent` values describing *actions*. It
+The wallet API accepts `TxIntent` values describing _actions_. It
 never accepts a serialized PTB from the caller. The wallet service
 rebuilds the canonical PTB from server-side templates parameterized
 by the intent.
@@ -45,58 +45,58 @@ template, and TypeScript intent enum — by design.
 ```ts
 // in packages/core (sketch; final file lands with the core scaffold)
 export type TxIntent =
-  | { kind: "create_market";          params: CreateMarketParams }
+  | { kind: "create_market"; params: CreateMarketParams }
   | { kind: "record_subject_consent"; params: ConsentParams }
-  | { kind: "mint_invite";            params: MintInviteParams }
-  | { kind: "place";                  params: PlaceParams }
-  | { kind: "submit_attestation";     params: AttestParams }
-  | { kind: "open_challenge";         params: OpenChallengeParams }
-  | { kind: "claim";                  params: ClaimParams }
-  | { kind: "refund";                 params: RefundParams }
-  | { kind: "migrate_custody";        params: MigrateCustodyParams };
+  | { kind: "mint_invite"; params: MintInviteParams }
+  | { kind: "place"; params: PlaceParams }
+  | { kind: "submit_attestation"; params: AttestParams }
+  | { kind: "open_challenge"; params: OpenChallengeParams }
+  | { kind: "claim"; params: ClaimParams }
+  | { kind: "refund"; params: RefundParams }
+  | { kind: "migrate_custody"; params: MigrateCustodyParams };
 
 export type TxIntentKind = TxIntent["kind"];
 
 export interface IntentEnvelope<P> {
-  user_id:       UserId;
-  session_id:    SessionId;
-  market_id:     MarketId | null;   // null only for migrate_custody / create_market
-  max_amount:    MistAmount | null; // null for non-spending intents
-  nonce:         Nonce;             // 16 random bytes; replay-checked under
-                                    // (user_id, scope, nonce) where scope is
-                                    // market_id or a sentinel for null
-  expires_at_ms: TimestampMs;       // server enforces; <= 5 min after issue
-  preview_hash:  PreviewHash;       // see §2 for what this actually defends
-  params:        P;
+  user_id: UserId;
+  session_id: SessionId;
+  market_id: MarketId | null; // null only for migrate_custody / create_market
+  max_amount: MistAmount | null; // null for non-spending intents
+  nonce: Nonce; // 16 random bytes; replay-checked under
+  // (user_id, scope, nonce) where scope is
+  // market_id or a sentinel for null
+  expires_at_ms: TimestampMs; // server enforces; <= 5 min after issue
+  preview_hash: PreviewHash; // see §2 for what this actually defends
+  params: P;
 }
 ```
 
 Intent kinds map 1:1 to Move entry points in
 [`docs/design.md`](../design.md) "On-chain design / Entry points":
 
-| `TxIntent.kind`          | Move entry point          |
-|--------------------------|---------------------------|
-| `create_market`          | `create_market<T>`        |
-| `record_subject_consent` | `record_subject_consent<T>` |
-| `mint_invite`            | `mint_invite<T>`          |
-| `place`                  | `place<T>`                |
-| `submit_attestation`     | `submit_attestation<T>`   |
-| `open_challenge`         | `open_challenge<T>`       |
-| `claim`                  | `claim<T>`                |
-| `refund`                 | `refund<T>`               |
+| `TxIntent.kind`          | Move entry point                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `create_market`          | `create_market<T>`                                                                               |
+| `record_subject_consent` | `record_subject_consent<T>`                                                                      |
+| `mint_invite`            | `mint_invite<T>`                                                                                 |
+| `place`                  | `place<T>`                                                                                       |
+| `submit_attestation`     | `submit_attestation<T>`                                                                          |
+| `open_challenge`         | `open_challenge<T>`                                                                              |
+| `claim`                  | `claim<T>`                                                                                       |
+| `refund`                 | `refund<T>`                                                                                      |
 | `migrate_custody`        | (see §6; lands in Move alongside the owner-indirection work in ditz `pm-move-owner-indirection`) |
 
 The following Move entry points are **deliberately not signable** by
 the custodial wallet service and use separate authority:
 
-| Move entry point        | Authority                       | Rationale |
-|-------------------------|---------------------------------|-----------|
-| `lock<T>`               | keeper or any participant       | Time-driven lifecycle transition; not a user action requiring custodial spend authority. |
-| `finalize<T>`           | keeper or any participant       | Same; "anyone finalizes after the window" per `docs/design.md:189`. |
-| `submit_verdict<T>`     | committee multisig (`CommitteeCap`) | Committee seats are out-of-band keys, not Twitter-bound custodial users. If a committee seat is later held by a custodial user, that is a separate ADR. |
-| `withdraw_fees<T>`      | ops (`AdminCap`)                | Ops action, not a user action. Handled by deployment tooling, not the wallet API. |
+| Move entry point    | Authority                           | Rationale                                                                                                                                               |
+| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lock<T>`           | keeper or any participant           | Time-driven lifecycle transition; not a user action requiring custodial spend authority.                                                                |
+| `finalize<T>`       | keeper or any participant           | Same; "anyone finalizes after the window" per `docs/design.md:189`.                                                                                     |
+| `submit_verdict<T>` | committee multisig (`CommitteeCap`) | Committee seats are out-of-band keys, not Twitter-bound custodial users. If a committee seat is later held by a custodial user, that is a separate ADR. |
+| `withdraw_fees<T>`  | ops (`AdminCap`)                    | Ops action, not a user action. Handled by deployment tooling, not the wallet API.                                                                       |
 
-Subject *withdrawal* of consent mid-`Trading` is a known gap in
+Subject _withdrawal_ of consent mid-`Trading` is a known gap in
 [`docs/design.md`](../design.md) — the lifecycle lists
 `Cancelled` as a terminal state but does not name an entry point. A
 follow-up ditz `pm-move-consent-withdrawal-entry-point` tracks
@@ -114,16 +114,16 @@ checks below in order. Any failure aborts before any key material is
 touched. Each check produces a structured `RejectionReason` used in
 audit events.
 
-| # | Check                | Failure reason code         |
-|---|----------------------|-----------------------------|
-| 1 | Session validity     | `session_invalid`           |
-| 2 | Ownership            | `key_not_owned`             |
-| 3 | Intent kind allowed  | `unknown_intent_kind`       |
-| 4 | Scope authority      | `out_of_scope`              |
-| 5 | Atomic reservation: spend + nonce | `spend_cap_exceeded`, `nonce_replay` |
-| 6 | On-chain precondition (advisory) | `state_not_permitted`  |
-| 7 | Intent-record consistency        | `preview_hash_mismatch` |
-| 8 | Risk / lock state    | `account_locked`            |
+| #   | Check                             | Failure reason code                  |
+| --- | --------------------------------- | ------------------------------------ |
+| 1   | Session validity                  | `session_invalid`                    |
+| 2   | Ownership                         | `key_not_owned`                      |
+| 3   | Intent kind allowed               | `unknown_intent_kind`                |
+| 4   | Scope authority                   | `out_of_scope`                       |
+| 5   | Atomic reservation: spend + nonce | `spend_cap_exceeded`, `nonce_replay` |
+| 6   | On-chain precondition (advisory)  | `state_not_permitted`                |
+| 7   | Intent-record consistency         | `preview_hash_mismatch`              |
+| 8   | Risk / lock state                 | `account_locked`                     |
 
 Specifics:
 
@@ -146,7 +146,7 @@ Specifics:
   unredeemed `InviteCap`; `submit_attestation` requires `subject_a`
   or `subject_b`).
 - **Atomic reservation: spend + nonce.** Spend caps and nonce
-  freshness are *not* read-then-check; they are a single
+  freshness are _not_ read-then-check; they are a single
   compare-and-insert transaction against a reservation table keyed
   on `(user_id, scope, nonce)`, where `scope` is `market_id` or a
   per-kind sentinel for the null-market intents
@@ -169,7 +169,7 @@ Specifics:
   The replay window is bounded by GC: nonce rows are retained for
   a window strictly greater than the maximum envelope lifetime —
   the constraint is `gc_window > envelope_ttl_max +
-  clock_skew_budget`, where `envelope_ttl_max` is the 5-minute
+clock_skew_budget`, where `envelope_ttl_max` is the 5-minute
   ceiling imposed on `expires_at_ms` (see `IntentEnvelope` in §1).
   The operational default is 24h, which has ample headroom for
   the 5-minute TTL plus realistic clock skew. The safety condition
@@ -179,6 +179,7 @@ Specifics:
 
   This replaces the prior wording's "freshness check"; that wording
   was a TOCTOU race.
+
 - **On-chain precondition (advisory).** Fresh `getObject` on the
   relevant `Market<T>` confirms the lifecycle phase the intent
   assumes (e.g. `place` requires `Market.state == Trading`; `claim`
@@ -231,7 +232,7 @@ event below. On failure it records the same event with
   conversion from `KeyRef` to `Uint8Array`.
 - Signing is performed inside the wallet-service process. The
   internal signing function accepts `(KeyRef,
-  canonical_ptb_bytes) -> Signature` and delegates to the KMS/HSM
+canonical_ptb_bytes) -> Signature` and delegates to the KMS/HSM
   SDK. The signature is the only thing that crosses back out.
 - Audit search and joins MUST NOT key on `KeyRef` directly. They key
   on `key_ref_fpr = sha256(canonical_serialization(KeyRef))`. The
@@ -258,25 +259,23 @@ export interface SigningAuditEvent {
 
   // identity
   user_id: UserId;
-  key_ref_fpr: Sha256;                 // never the KeyRef itself;
-                                       // pseudonymous sensitive metadata
+  key_ref_fpr: Sha256; // never the KeyRef itself;
+  // pseudonymous sensitive metadata
   session_id: SessionId;
-  account_owner_kind:
-    | "custodial" | "migrating" | "self_custody" | "locked";
+  account_owner_kind: "custodial" | "migrating" | "self_custody" | "locked";
 
   // intent
   intent_kind: TxIntentKind;
   market_id: MarketId | null;
   max_amount: MistAmount | null;
-  nonce: Nonce;                        // logged for replay-detection forensics;
-                                       // expected unique within the 24h window
+  nonce: Nonce; // logged for replay-detection forensics;
+  // expected unique within the 24h window
   preview_hash: PreviewHash;
-  policy_version: PolicyVersion;       // bumps on policy-engine change
+  policy_version: PolicyVersion; // bumps on policy-engine change
 
   // outcome
   decision:
-    | { tag: "accepted"; tx_digest: TxDigest;
-        on_chain_version: SequenceNumber }
+    | { tag: "accepted"; tx_digest: TxDigest; on_chain_version: SequenceNumber }
     | { tag: "rejected"; reason_code: RejectionReason };
 
   // diagnostics (all derived, no plaintext)
@@ -303,12 +302,12 @@ exclusions are part of the schema, not advice:
 - request body fields beyond what is enumerated above.
 
 `LoggableValue` carries part of this load — but only part. See
-[ADR 0002 §3](0002-custodial-decrypt-logging.md) for the full
+[ADR 0003 §3](0003-custodial-decrypt-logging.md) for the full
 scope and limits of the type-level enforcement; the same machinery
 covers signing-side logging. Briefly: the audit logger accepts only
 `LoggableValue`, and `Plaintext<T>`, `Secret<T>`, `KeyRef`, and raw
 PTB bytes are not `LoggableValue`. That keeps the audit table free
-of plaintext. It does *not* close every log surface in the process
+of plaintext. It does _not_ close every log surface in the process
 (stdout, OpenTelemetry attributes, error string interpolation);
 those are governed by ESLint rules forbidding `console.*` and
 `logger.info(${...})` patterns in the wallet/decrypt modules and by
@@ -324,11 +323,11 @@ code review at the module boundary.
   decision. A signing success that we cannot record is treated as an
   incident, not as a fast path.
 
-Note on retention asymmetry with ADR 0002 (decrypt events at 180
+Note on retention asymmetry with ADR 0003 (decrypt events at 180
 days): signing events stay hot longer because the action they record
 becomes public on Sui anyway — joining a settled-on-chain digest to
 its signing event remains useful well past 180 days for incident
-response, while a `DecryptAuditEvent` reveals what a user *read* and
+response, while a `DecryptAuditEvent` reveals what a user _read_ and
 is correspondingly more sensitive. The two retentions are
 deliberately different and reviewed together each policy version.
 
@@ -340,21 +339,21 @@ serve custodial and self-custody users:
 
 ```ts
 export type AccountOwner =
-  | { tag: "custodial";    key_ref: KeyRef }
-  | { tag: "migrating";    from: KeyRef; to: SuiAddress }
+  | { tag: "custodial"; key_ref: KeyRef }
+  | { tag: "migrating"; from: KeyRef; to: SuiAddress }
   | { tag: "self_custody"; address: SuiAddress }
-  | { tag: "locked";       reason: LockReason };
+  | { tag: "locked"; reason: LockReason };
 ```
 
 The intent and policy paths do not branch on owner kind until the
 final dispatch step:
 
-| AccountOwner       | Final dispatch                                                |
-|--------------------|---------------------------------------------------------------|
-| `custodial`        | Wallet service signs with `KeyRef`, submits, returns digest.  |
-| `migrating`        | Same as `custodial`, plus `migrate_custody` is allowed.       |
-| `self_custody`     | Wallet service returns the unsigned canonical PTB; browser signs. |
-| `locked`           | Reject everything except `claim`/`refund` via support flow.   |
+| AccountOwner   | Final dispatch                                                    |
+| -------------- | ----------------------------------------------------------------- |
+| `custodial`    | Wallet service signs with `KeyRef`, submits, returns digest.      |
+| `migrating`    | Same as `custodial`, plus `migrate_custody` is allowed.           |
+| `self_custody` | Wallet service returns the unsigned canonical PTB; browser signs. |
+| `locked`       | Reject everything except `claim`/`refund` via support flow.       |
 
 The policy-engine checks (1–8) are identical across owner kinds. We
 do not weaken the boundary for self-custody users just because the
@@ -397,17 +396,17 @@ This ADR therefore claims only:
 
 ### 7. Closed enum: kinds and partitions
 
-| Kind                      | Partition  | Spends?     | Required Move state |
-|---------------------------|------------|-------------|---------------------|
-| `create_market`           | high_risk  | gas only    | `Config` not paused |
-| `record_subject_consent`  | routine    | no          | `Proposed` |
-| `mint_invite`             | routine    | gas only    | `Proposed \| Trading` and caller is creator |
-| `place`                   | routine    | yes         | `Trading` |
-| `submit_attestation`      | routine    | no          | `AttestationPending` and caller is `subject_a` or `subject_b` |
-| `open_challenge`          | routine    | yes (bond)  | `ChallengeWindowOpen` |
-| `claim`                   | routine    | no          | `Settled` |
-| `refund`                  | routine    | no          | `Cancelled \| Expired \| InvalidRefund` |
-| `migrate_custody`         | high_risk  | gas only    | owner not already `self_custody` (intended invariant; the Move call lands with `pm-move-owner-indirection`) |
+| Kind                     | Partition | Spends?    | Required Move state                                                                                         |
+| ------------------------ | --------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| `create_market`          | high_risk | gas only   | `Config` not paused                                                                                         |
+| `record_subject_consent` | routine   | no         | `Proposed`                                                                                                  |
+| `mint_invite`            | routine   | gas only   | `Proposed \| Trading` and caller is creator                                                                 |
+| `place`                  | routine   | yes        | `Trading`                                                                                                   |
+| `submit_attestation`     | routine   | no         | `AttestationPending` and caller is `subject_a` or `subject_b`                                               |
+| `open_challenge`         | routine   | yes (bond) | `ChallengeWindowOpen`                                                                                       |
+| `claim`                  | routine   | no         | `Settled`                                                                                                   |
+| `refund`                 | routine   | no         | `Cancelled \| Expired \| InvalidRefund`                                                                     |
+| `migrate_custody`        | high_risk | gas only   | owner not already `self_custody` (intended invariant; the Move call lands with `pm-move-owner-indirection`) |
 
 Anything not in the table cannot be signed by the wallet service.
 Move entry points that exist on-chain but are not in `TxIntent` are
@@ -426,7 +425,7 @@ Positive:
   can be shared with on-call without becoming a second privacy
   channel.
 - The policy engine does not depend on which key backs
-  `AccountOwner`, so the *signing surface* does not need rewriting
+  `AccountOwner`, so the _signing surface_ does not need rewriting
   for a user migrating off custody. The Move-side rewrite required
   to swap the controlling address in membership/positions is
   separate work (see §6 and `pm-move-owner-indirection`).
@@ -441,7 +440,7 @@ Negative:
   to users as "please reload the market" — a tradeoff against a
   silent race window.
 
-Risks this ADR does *not* address:
+Risks this ADR does _not_ address:
 
 - KMS/HSM compromise. Tracked in `pm-wallet-kms-hsm-choice`. The
   fingerprint-based audit indexing helps detect anomalous use; it
@@ -490,16 +489,16 @@ export interface CreateMarketParams {
   terms_hash: Sha256;
   encrypted_refs: {
     metadata: EncryptedRef<"P1Participant">;
-    subject:  EncryptedRef<"P2Subject">;
+    subject: EncryptedRef<"P2Subject">;
   };
   subject_a: SuiAddress;
   subject_b: SuiAddress;
   timings: {
-    close_ms:               TimestampMs;
-    earliest_attest_ms:     TimestampMs;
+    close_ms: TimestampMs;
+    earliest_attest_ms: TimestampMs;
     resolution_deadline_ms: TimestampMs;
-    challenge_window_ms:    u32;
-    dispute_deadline_ms:    TimestampMs;
+    challenge_window_ms: u32;
+    dispute_deadline_ms: TimestampMs;
   };
   fee_bps: u16;
   committee: SuiAddress[];
@@ -507,17 +506,21 @@ export interface CreateMarketParams {
 
 export interface PlaceParams {
   invite_cap_id: ObjectId;
-  outcome:       "yes" | "no";
-  amount:        MistAmount;   // <= envelope.max_amount
-  coin_in:       ObjectId;     // Coin<T> selected by the wallet, not the caller
+  outcome: "yes" | "no";
+  amount: MistAmount; // <= envelope.max_amount
+  coin_in: ObjectId; // Coin<T> selected by the wallet, not the caller
 }
 
 export interface MintInviteParams {
-  grantee:    SuiAddress;
-  max_stake:  MistAmount;
+  grantee: SuiAddress;
+  max_stake: MistAmount;
   expires_ms: TimestampMs;
 }
 
-export interface ClaimParams  { position_id: ObjectId; }
-export interface RefundParams { position_id: ObjectId; }
+export interface ClaimParams {
+  position_id: ObjectId;
+}
+export interface RefundParams {
+  position_id: ObjectId;
+}
 ```

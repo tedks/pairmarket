@@ -1,10 +1,10 @@
-# ADR 0002 — Custodial decrypt logging policy
+# ADR 0003 — Custodial decrypt logging policy
 
 - Status: Proposed
 - Date: 2026-06-27
 - Tracks ditz: `pm-privacy-custodial-decrypt-logging`
 - Related: `pm-privacy-policy-model`, `pm-privacy-key-server-set`,
-  `pm-privacy-resolver-evidence-disclosure`, ADR 0001
+  `pm-privacy-resolver-evidence-disclosure`, ADR 0002
 
 ## Context
 
@@ -50,18 +50,17 @@ export interface DecryptAuditEvent {
   // identity
   user_id: UserId;
   session_id: SessionId;
-  account_owner_kind:
-    | "custodial" | "migrating" | "self_custody" | "locked";
+  account_owner_kind: "custodial" | "migrating" | "self_custody" | "locked";
 
   // what was requested
-  policy_kind: PolicyKind;   // P1Participant | P2Subject | P3Draft
-                             // | P4Evidence
+  policy_kind: PolicyKind; // P1Participant | P2Subject | P3Draft
+  // | P4Evidence
   policy_phase: PolicyPhase; // "n_a" for P1/P2/P3;
-                             // "pre_settle" | "post_settle" for P4
-  scope_id: ObjectId;        // raw Market or User object id;
-                             // see note below on why this is not hashed
+  // "pre_settle" | "post_settle" for P4
+  scope_id: ObjectId; // raw Market or User object id;
+  // see note below on why this is not hashed
   policy_epoch: u32;
-  blob_id: WalrusBlobId;     // public Walrus identifier
+  blob_id: WalrusBlobId; // public Walrus identifier
   ciphertext_digest: Sha256; // SHA-256 of the ciphertext envelope
   envelope_alg: EnvelopeAlg; // e.g. "seal-aes256-gcm-v1"
 
@@ -72,7 +71,8 @@ export interface DecryptAuditEvent {
   // outcome
   decision:
     | { tag: "granted" }
-    | { tag: "refused";
+    | {
+        tag: "refused";
         reason_code: DecryptRefusal;
         // one of: not_member | wrong_epoch | scope_mismatch
         //       | digest_mismatch | aad_mismatch | key_server_refused
@@ -81,9 +81,9 @@ export interface DecryptAuditEvent {
       };
 
   // diagnostics
-  request_origin: ApiRoute;        // closed enum of caller endpoints
+  request_origin: ApiRoute; // closed enum of caller endpoints
   duration_ms: u32;
-  ciphertext_bytes: u32;           // size in bytes; not content
+  ciphertext_bytes: u32; // size in bytes; not content
   policy_version: PolicyVersion;
 }
 ```
@@ -131,7 +131,7 @@ type MUST NOT carry, and the audit logger MUST NOT accept, any of:
 
 The "shall not log plaintext" rule is the kind of rule that holds for
 six months and then breaks at 3 AM. The architecture has to do the
-work, not the policy text — but the architecture cannot do *all* the
+work, not the policy text — but the architecture cannot do _all_ the
 work in TypeScript. This section is precise about what the type
 system catches and what falls to lint, code review, and module
 boundaries.
@@ -152,14 +152,22 @@ What the type system catches:
 
   ```ts
   export class Plaintext<T> {
-    readonly #inner: T;               // ECMAScript private, runtime-enforced
-    private constructor(inner: T) { this.#inner = inner; }
-    static of<T>(inner: T): Plaintext<T> { return new Plaintext(inner); }
-    use<R>(f: (raw: T) => R): R { return f(this.#inner); }
+    readonly #inner: T; // ECMAScript private, runtime-enforced
+    private constructor(inner: T) {
+      this.#inner = inner;
+    }
+    static of<T>(inner: T): Plaintext<T> {
+      return new Plaintext(inner);
+    }
+    use<R>(f: (raw: T) => R): R {
+      return f(this.#inner);
+    }
     toJSON(): never {
       throw new TypeError("Plaintext is not JSON-serializable");
     }
-    get [Symbol.toStringTag]() { return "Plaintext"; }
+    get [Symbol.toStringTag]() {
+      return "Plaintext";
+    }
   }
   ```
 
@@ -186,7 +194,7 @@ What the type system catches:
      escape hatch.
 
   These properties together close the most common accidental leak
-  paths through the *general* logger as well as the audit one. If
+  paths through the _general_ logger as well as the audit one. If
   the implementation drops `#inner` for TypeScript `private`, the
   guarantee silently disappears — TypeScript `private` is a
   compile-time check only, the runtime field is enumerable and
@@ -200,13 +208,21 @@ What the type system catches:
   ```ts
   export class Secret<T> {
     readonly #inner: T;
-    private constructor(inner: T) { this.#inner = inner; }
-    static of<T>(inner: T): Secret<T> { return new Secret(inner); }
-    use<R>(f: (raw: T) => R): R { return f(this.#inner); }
+    private constructor(inner: T) {
+      this.#inner = inner;
+    }
+    static of<T>(inner: T): Secret<T> {
+      return new Secret(inner);
+    }
+    use<R>(f: (raw: T) => R): R {
+      return f(this.#inner);
+    }
     toJSON(): never {
       throw new TypeError("Secret is not JSON-serializable");
     }
-    get [Symbol.toStringTag]() { return "Secret"; }
+    get [Symbol.toStringTag]() {
+      return "Secret";
+    }
   }
   ```
 
@@ -215,7 +231,7 @@ What the type system catches:
   serializer of a containing object will silently emit the key
   material.
 
-What the type system does *not* catch, and what carries the rest:
+What the type system does _not_ catch, and what carries the rest:
 
 - `console.log(plaintextInstance)` will print `Plaintext {}` (good)
   but `console.log(plaintext.use(x => x))` extracts and prints the
@@ -246,7 +262,7 @@ time, lives only on the request scope, and is consumed exactly once
 by the response serializer via `.use()`. After serialization the
 buffer is overwritten where the runtime permits. The wording in
 earlier drafts ("dropped before the response handler returns") was
-imprecise — the plaintext is consumed *by* the response handler so
+imprecise — the plaintext is consumed _by_ the response handler so
 the response body can be sent; it is not retained past that point
 in any service-side state.
 
@@ -254,7 +270,7 @@ in any service-side state.
 
 - `DecryptAuditEvent` retention: 180 days hot. After 180 days, only
   daily aggregates per `(user_id, policy_kind, policy_phase,
-  decision)` survive.
+decision)` survive.
 - Read access (hot): privacy-eng + ops on-call. Every read is itself
   recorded as a `LogAccessEvent` with the requesting operator id.
   Break-glass requires two-person approval.
@@ -264,8 +280,8 @@ in any service-side state.
   an incident; we do not silently degrade to "decrypt without
   logging".
 
-Retention rationale and the asymmetry with ADR 0001 (signing events
-at 365 days): decrypt events record what a user *read* of private
+Retention rationale and the asymmetry with ADR 0002 (signing events
+at 365 days): decrypt events record what a user _read_ of private
 content and are more sensitive than the corresponding signing
 events, which record actions that become public on Sui anyway.
 Shorter retention reduces the harm surface of an internal log
@@ -321,7 +337,7 @@ baseline by a configurable factor.
 - decrypts under operator break-glass after a meta-audit read.
 
 Each signal can auto-lock the account (`AccountOwner = Locked`),
-which routes through the soft-lock behavior in ADR 0001.
+which routes through the soft-lock behavior in ADR 0002.
 
 ### 7. zkLogin migration removes the backend from the path
 
@@ -330,7 +346,7 @@ the SEAL key-share request is signed client-side and the backend is
 not in the decrypt loop. From that point the user's `decrypts`
 table stops growing because the backend has no operations to record.
 
-The implication is that this ADR is the privacy backstop *until*
+The implication is that this ADR is the privacy backstop _until_
 migration, and the rate of `DecryptAuditEvent`s after a population
 migrates to self-custody is itself an indicator: if it is not
 falling, something is calling the custodial decrypt path that
