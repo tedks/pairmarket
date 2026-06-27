@@ -1,0 +1,18 @@
+id: pm-move-challenge-bond-escrow
+title: Implement challenge bond escrow and slashing
+desc: The merged Move MVP exposes open_challenge but does not yet collect, escrow,
+  and route challenge bonds. Implement bond coin handling, losing-challenge slashing,
+  successful-challenge refund/reward rules, and unit tests for both paths.
+type: feature
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T17:09:51-00:00
+references: []
+log_events:
+- time: 2026-06-27T17:09:51-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
