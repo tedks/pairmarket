@@ -10,6 +10,13 @@
   },
   "scripts": {
     "docs:lint": "markdownlint-cli2",
+    "devstack:deploy": "scripts/devstack.sh deploy",
+    "devstack:down": "scripts/devstack.sh down",
+    "devstack:env": "scripts/devstack.sh env",
+    "devstack:logs": "scripts/devstack.sh logs",
+    "devstack:reset": "scripts/devstack.sh reset",
+    "devstack:status": "scripts/devstack.sh status",
+    "devstack:up": "scripts/devstack.sh up",
     "fmt": "prettier --write \"**/*.{json,jsonc,yml,yaml,ts,tsx}\"",
     "fmt:check": "prettier --check \"**/*.{json,jsonc,yml,yaml,ts,tsx}\"",
     "move:build": "sui move build --path contracts/pairmarket --build-env mainnet",

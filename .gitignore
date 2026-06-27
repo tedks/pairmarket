@@ -1,6 +1,7 @@
 /result
 /result-*
 .direnv/
+.devstack/
 node_modules/
 dist/
 build/
