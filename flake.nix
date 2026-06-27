@@ -69,6 +69,7 @@
               nodejs
               pnpm
               sui
+              pkgs.curl
               pkgs.git
             ];
 
