@@ -25,3 +25,9 @@ log_events:
   who: Ted Smith
   what: no longer blocks pm-types-rescript-spike
   comment: ""
+- time: 2026-06-27T05:18:07-00:00
+  who: Ted Smith
+  what: blocked by pm-types-rescript-spike
+  comment: ""
+blocked_by:
+- pm-types-rescript-spike
