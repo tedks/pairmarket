@@ -1,0 +1,19 @@
+id: pm-web-wallet-bundle-split
+title: Code-split Sui wallet SDK from initial web bundle
+desc: 'PR #11 adds @mysten/dapp-kit-react and @mysten/sui for self-custody wallet
+  sign-in. Vite build passes but warns that the initial JS chunk is >500 kB. Evaluate
+  lazy-loading wallet controls or vendor chunk splitting so the unauthenticated market
+  list stays lean.'
+type: task
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T22:13:17-00:00
+references: []
+log_events:
+- time: 2026-06-27T22:13:17-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
