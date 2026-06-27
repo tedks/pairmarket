@@ -23,5 +23,5 @@
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "playwright"]
+  "include": ["src"]
 }
