@@ -73,9 +73,20 @@ export type SigningCustodyScope = Extract<
   { readonly kind: "sign-market-tx" | "sign-account-tx" }
 >;
 
+/**
+ * Config-time helper only. It preserves literal txKinds from checked fixtures or
+ * static policy tables; runtime authorization must still inspect the concrete
+ * CustodyScope value before signing.
+ */
+export function defineSigningCustodyScope<
+  const TScope extends SigningCustodyScope,
+>(scope: TScope): TScope {
+  return scope;
+}
+
 export type CustodyScopeTxKind<TScope extends SigningCustodyScope> =
-  TScope extends { readonly txKinds: readonly (infer TKind)[] }
-    ? Extract<TKind, TxKind>
+  TScope extends { readonly txKinds: readonly (infer TKind extends TxKind)[] }
+    ? TKind
     : never;
 
 export type CustodyScopeTxIntent<TScope extends SigningCustodyScope> = TxIntent<

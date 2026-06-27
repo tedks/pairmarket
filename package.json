@@ -21,8 +21,9 @@
     "fmt:check": "prettier --check \"**/*.{json,jsonc,yml,yaml,ts,tsx}\"",
     "move:build": "sui move build --path contracts/pairmarket --build-env mainnet",
     "move:test": "sui move test --path contracts/pairmarket --build-env mainnet",
+    "test:runtime": "node --experimental-strip-types packages/core/test/plaintext.runtime.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "verify": "pnpm fmt:check && pnpm typecheck && pnpm docs:lint && pnpm move:build && pnpm move:test"
+    "verify": "pnpm fmt:check && pnpm typecheck && pnpm test:runtime && pnpm docs:lint && pnpm move:build && pnpm move:test"
   },
   "devDependencies": {
     "@types/node": "24.13.2",

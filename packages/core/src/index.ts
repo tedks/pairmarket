@@ -68,7 +68,6 @@ export {
   type WalrusBlobId,
 } from "./ids.js";
 export type {
-  Plaintext,
   PolicyBound,
   PolicyKind,
   SealCiphertext,
@@ -77,6 +76,7 @@ export type {
   WalrusEnvelopeHeader,
   WalrusEnvelopeVersion,
 } from "./privacy.js";
+export { Plaintext, makePlaintext, usePlaintext } from "./privacy.js";
 export type {
   AccountScopedTxKind,
   CustodyCap,
@@ -89,7 +89,9 @@ export type {
   SigningCustodyScope,
   WagerCap,
 } from "./capabilities.js";
+export { defineSigningCustodyScope } from "./capabilities.js";
 export {
+  networkByEnv,
   parseSuiRpcUrl,
   tryParseSuiRpcUrl,
   type HostedNetworkEnv,

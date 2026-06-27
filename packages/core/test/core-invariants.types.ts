@@ -1,14 +1,19 @@
 import {
+  defineSigningCustodyScope,
+  makePlaintext,
+  networkByEnv,
   parseKeyRef,
   parseMarketId,
   parseMistAmount,
   parseSuiAddress,
   parseSuiObjectId,
   parseSuiRpcUrl,
+  usePlaintext,
   type BrandName,
   type CustodyScopeTxIntent,
   type CustodyScopeTxKind,
   type KeyRef,
+  type MarketScopedTxKind,
   type NetworkFixture,
   type Plaintext,
   type SigningCustodyScope,
@@ -45,7 +50,11 @@ type InviteTerms = {
   readonly inviteCode: string;
 };
 
-declare const marketPlaintext: Plaintext<MarketTerms>;
+const marketPlaintext = makePlaintext({
+  title: "Will A and B last 3 dates?",
+  termsHash: "sha256:terms",
+} satisfies MarketTerms);
+const plaintextTitle = usePlaintext(marketPlaintext, (raw) => raw.title);
 
 function sendMarketTerms(value: MarketTerms): void {
   void value;
@@ -57,20 +66,22 @@ sendMarketTerms(marketPlaintext);
 // @ts-expect-error Plaintext brands carry the decrypted payload shape.
 const wrongPlaintext: Plaintext<InviteTerms> = marketPlaintext;
 
+void plaintextTitle;
 void wrongPlaintext;
 
 const market = parseMarketId("0x2");
 const maxAmountMist = parseMistAmount(100n);
 
-const placeWagerOnlyScope = {
+const placeWagerOnlyScope = defineSigningCustodyScope({
   kind: "sign-market-tx",
   market,
   txKinds: ["place-wager"],
   maxAmountMist,
-} as const satisfies SigningCustodyScope;
+} as const);
 
 declare const placeWagerIntent: TxIntent<"place-wager">;
 declare const createMarketIntent: TxIntent<"create-market">;
+declare const refundIntent: TxIntent<"refund">;
 
 const authorizedWager: CustodyScopeTxIntent<typeof placeWagerOnlyScope> =
   placeWagerIntent;
@@ -85,23 +96,39 @@ const placeWagerKind = "place-wager" satisfies PlaceWagerOnlyKind;
 // @ts-expect-error Scope txKinds remain the source of authorized intent kinds.
 const wrongScopeKind: PlaceWagerOnlyKind = "create-market";
 
+const runtimeMarketTxKinds: readonly MarketScopedTxKind[] = ["place-wager"];
+const runtimeMarketScope: SigningCustodyScope = {
+  kind: "sign-market-tx",
+  market,
+  txKinds: runtimeMarketTxKinds,
+  maxAmountMist,
+};
+
+// Widened runtime scopes deliberately widen the helper result too; signing code
+// must inspect the concrete scope value before authorizing a transaction.
+const runtimeScopeNeedsPolicyCheck: CustodyScopeTxIntent<
+  typeof runtimeMarketScope
+> = refundIntent;
+
 const invalidAccountScopeFixture = {
   kind: "sign-account-tx",
   txKinds: ["migrate-custody"],
 } as const;
 
-// @ts-expect-error Custody migration is not an account signing scope.
+// @ts-expect-error Custody migration uses its own scope kind, not sign-account-tx.
 const invalidAccountScope: SigningCustodyScope = invalidAccountScopeFixture;
 
 void authorizedWager;
 void rejectedCreateMarket;
 void placeWagerKind;
 void wrongScopeKind;
+void runtimeScopeNeedsPolicyCheck;
 void invalidAccountScope;
 
 const rpcUrl = parseSuiRpcUrl("http://127.0.0.1:9000");
 const packageId = parseSuiObjectId("0x2");
 const publisher = parseSuiAddress("0x3");
+const localNetwork = networkByEnv.local satisfies "localnet";
 
 function requireRpcUrl(value: SuiRpcUrl): SuiRpcUrl {
   return value;
@@ -136,3 +163,5 @@ requireLocalFixture(localFixture);
 
 // @ts-expect-error Mainnet/prod fixtures are not accepted as local fixtures.
 requireLocalFixture(prodFixture);
+
+void localNetwork;

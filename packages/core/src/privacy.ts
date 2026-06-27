@@ -20,12 +20,40 @@ export type SealCiphertext<TPlaintext> = Brand<
   readonly ["SealCiphertext", TPlaintext]
 >;
 
-export type Plaintext<T> = Brand<
-  {
-    readonly plaintext?: never;
-  },
-  readonly ["Plaintext", T]
->;
+export class Plaintext<T> {
+  readonly #inner: T;
+
+  private constructor(inner: T) {
+    this.#inner = inner;
+  }
+
+  static of<T>(inner: T): Plaintext<T> {
+    return new Plaintext(inner);
+  }
+
+  use<R>(f: (raw: T) => R): R {
+    return f(this.#inner);
+  }
+
+  toJSON(): never {
+    throw new TypeError("Plaintext is not JSON-serializable");
+  }
+
+  get [Symbol.toStringTag](): string {
+    return "Plaintext";
+  }
+}
+
+export function makePlaintext<T>(inner: T): Plaintext<T> {
+  return Plaintext.of(inner);
+}
+
+export function usePlaintext<T, R>(
+  plaintext: Plaintext<T>,
+  f: (raw: T) => R,
+): R {
+  return plaintext.use(f);
+}
 
 export type SealDerivedKey = Brand<Uint8Array, "SealDerivedKey">;
 

@@ -2,19 +2,29 @@ import type { Brand } from "./brand.js";
 import type { SuiAddress, SuiObjectId } from "./ids.js";
 import { parseError, type ParseResult, tryParse } from "./validation.js";
 
-const HTTP_URL_RE = /^https?:\/\/[^\s/?#@]+(?:[/?#]\S*)?$/;
+type ParsedUrl = {
+  readonly protocol: string;
+  readonly hostname: string;
+  readonly username: string;
+  readonly password: string;
+  readonly href: string;
+};
+
+type UrlConstructor = new (input: string) => ParsedUrl;
 
 export type SuiNetwork = "localnet" | "devnet" | "testnet" | "mainnet";
 
 export type PairmarketEnv = "local" | "dev" | "test" | "prod";
 
-export type NetworkForEnv<TEnv extends PairmarketEnv> = TEnv extends "local"
-  ? "localnet"
-  : TEnv extends "dev"
-    ? "devnet"
-    : TEnv extends "test"
-      ? "testnet"
-      : "mainnet";
+export const networkByEnv = {
+  local: "localnet",
+  dev: "devnet",
+  test: "testnet",
+  prod: "mainnet",
+} as const satisfies Record<PairmarketEnv, SuiNetwork>;
+
+export type NetworkForEnv<TEnv extends PairmarketEnv> =
+  (typeof networkByEnv)[TEnv];
 
 export type SuiRpcUrl = Brand<`${"http" | "https"}://${string}`, "SuiRpcUrl">;
 
@@ -52,15 +62,52 @@ export function parseSuiRpcUrl(raw: unknown): SuiRpcUrl {
     );
   }
 
-  if (HTTP_URL_RE.test(raw)) {
-    return raw as SuiRpcUrl;
+  const Url = (globalThis as { readonly URL?: UrlConstructor }).URL;
+  if (Url === undefined) {
+    throw parseError(
+      "invalid_sui_rpc_url_runtime",
+      "SuiRpcUrl parsing requires a URL constructor",
+      raw,
+    );
   }
 
-  throw parseError(
-    "invalid_sui_rpc_url",
-    "SuiRpcUrl must be an http(s) URL string without credentials",
-    raw,
-  );
+  let url: ParsedUrl;
+  try {
+    url = new Url(raw);
+  } catch {
+    throw parseError(
+      "invalid_sui_rpc_url",
+      "SuiRpcUrl must be a valid absolute URL",
+      raw,
+    );
+  }
+
+  const protocol = url.protocol.toLowerCase();
+  if (protocol !== "http:" && protocol !== "https:") {
+    throw parseError(
+      "invalid_sui_rpc_url_scheme",
+      "SuiRpcUrl must use http or https",
+      raw,
+    );
+  }
+
+  if (url.hostname.length === 0) {
+    throw parseError(
+      "invalid_sui_rpc_url_host",
+      "SuiRpcUrl must include a host",
+      raw,
+    );
+  }
+
+  if (url.username !== "" || url.password !== "") {
+    throw parseError(
+      "invalid_sui_rpc_url_credentials",
+      "SuiRpcUrl must not include credentials",
+      raw,
+    );
+  }
+
+  return url.href as SuiRpcUrl;
 }
 
 export function tryParseSuiRpcUrl(raw: unknown): ParseResult<SuiRpcUrl> {
