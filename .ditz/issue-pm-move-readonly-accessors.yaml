@@ -1,0 +1,18 @@
+id: pm-move-readonly-accessors
+title: Add read-only accessors for Move market state
+desc: Expose stable read-only accessors for subjects, consent flags, lifecycle state,
+  pool totals, fee bps, and resolution metadata so clients/indexers do not rely on
+  struct layout beyond the published contract surface.
+type: feature
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T17:09:51-00:00
+references: []
+log_events:
+- time: 2026-06-27T17:09:51-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
