@@ -1,0 +1,21 @@
+id: pm-types-client-preview-hash
+title: Client-derived preview hash for real UI-tampering defense
+desc: "Per ADR 0001 \xA72 (Intent-record consistency): the current preview_hash is
+  a server\u2194server consistency check. A real UI-tampering defense requires the
+  client to derive a hash over the canonicalized preview it actually showed the user,
+  and the wallet service to verify against that. Specify the canonicalization, what
+  the browser library computes, and how the wallet service binds the signed PTB to
+  it."
+type: feature
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T07:04:10-00:00
+references: []
+log_events:
+- time: 2026-06-27T07:04:10-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
