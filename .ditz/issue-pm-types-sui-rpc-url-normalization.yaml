@@ -1,0 +1,19 @@
+id: pm-types-sui-rpc-url-normalization
+title: Document SuiRpcUrl normalization
+desc: 'parseSuiRpcUrl returns URL.href, so successful parses are normalized (for example
+  host casing and trailing slash) rather than preserving the exact input string. Document
+  this behavior or add fixture coverage so future consumers do not assume identity-on-success.
+  Filed from PR #7 convergence nit.'
+type: task
+component: types
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:37:34-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:37:34-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
