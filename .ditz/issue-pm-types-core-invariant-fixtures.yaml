@@ -1,0 +1,19 @@
+id: pm-types-core-invariant-fixtures
+title: Core invariant type fixture harness
+desc: 'Add focused TypeScript type fixtures around core invariants: branded ID minting
+  boundaries, plaintext non-escape shape, wallet intent/custody policy shape, and
+  local network/env fixture typing. This is a scaffold, not the full custom ESLint
+  brand/plaintext enforcement.'
+type: task
+component: types
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:02:45-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:02:45-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
