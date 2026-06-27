@@ -1,0 +1,18 @@
+id: pm-types-core-package-layout
+title: Confirm core/ package layout
+desc: 'Confirm core/ package layout: workspace package vs published, which artifacts
+  the frontend vs backend imports, and how Move-generated types are pulled in. Blocks
+  concrete API sketches by other subagents.'
+type: task
+component: architecture
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:27-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:27-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
