@@ -37,9 +37,14 @@ log_events:
   who: Ted Smith
   what: blocked by pm-privacy-resolver-evidence-disclosure
   comment: ""
+- time: 2026-06-27T05:17:09-00:00
+  who: Ted Smith
+  what: blocked by pm-privacy-trade-aggregation
+  comment: ""
 blocked_by:
 - pm-privacy-key-server-set
 - pm-privacy-backfill-access
 - pm-privacy-subject-consent-flow
 - pm-privacy-walrus-renewal-policy
 - pm-privacy-resolver-evidence-disclosure
+- pm-privacy-trade-aggregation
