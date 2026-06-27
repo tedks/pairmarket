@@ -1,0 +1,19 @@
+id: 8ae8de557644b649d9b90628d84bf291228dcfd4
+title: Smoke-check DAppKit Sui RPC endpoints
+desc: 'Council review on PR #11 raised that the configured Sui gRPC/fullnode URLs
+  are not exercised yet. Before wallet balances or transaction submission depend on
+  them, add an env-overridable endpoint config and a local smoke test that proves
+  the selected client can reach localnet/testnet or fails visibly in dev.'
+type: task
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T22:24:19-00:00
+references: []
+log_events:
+- time: 2026-06-27T22:24:19-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
