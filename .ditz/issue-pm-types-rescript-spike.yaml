@@ -25,3 +25,9 @@ log_events:
   who: Ted Smith
   what: no longer blocked by pm-type-system-strategy
   comment: ""
+- time: 2026-06-27T05:18:07-00:00
+  who: Ted Smith
+  what: blocks pm-type-system-strategy
+  comment: ""
+blocks:
+- pm-type-system-strategy
