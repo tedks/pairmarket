@@ -12,3 +12,7 @@ target/
 # Sui Move package build artifacts.
 contracts/**/build/
 contracts/**/Move.lock
+
+# Playwright e2e artifacts.
+apps/web/playwright/test-results/
+apps/web/playwright-report/
