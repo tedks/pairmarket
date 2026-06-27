@@ -51,6 +51,7 @@ body {
   font-family: var(--sans);
   font-size: 14px;
   line-height: 1.45;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -210,16 +211,51 @@ button {
 }
 
 @media (max-width: 720px) {
+  .app-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+  .brand {
+    min-width: 0;
+    flex: 1 1 150px;
+  }
+  .brand-tag {
+    display: none;
+  }
+  .header-spacer {
+    display: none;
+  }
+  .viewer-switcher {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .viewer-switcher select {
+    min-width: 0;
+    max-width: 210px;
+  }
+  .custody-pill {
+    max-width: calc(100vw - 24px);
+    white-space: nowrap;
+  }
   .app-body {
     grid-template-columns: 1fr;
   }
   .app-sidebar {
     flex-direction: row;
-    overflow: auto;
+    flex-wrap: wrap;
+    overflow: visible;
     padding: 8px;
   }
   .sidebar-spacer {
     flex: none;
+  }
+  .sidebar-item {
+    flex: 0 0 auto;
+  }
+  .app-main {
+    padding: 18px 12px;
   }
 }
 
@@ -295,6 +331,69 @@ button {
   text-align: center;
   color: var(--fg-dim);
   padding: 24px;
+}
+
+@media (max-width: 720px) {
+  .market-table,
+  .market-table tbody,
+  .market-table tr,
+  .market-table td {
+    display: block;
+    width: 100%;
+  }
+  .market-table {
+    border: none;
+    background: transparent;
+    border-radius: 0;
+  }
+  .market-table thead {
+    display: none;
+  }
+  .market-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .market-row {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+    overflow: hidden;
+  }
+  .market-table tbody tr:last-child td,
+  .market-table td {
+    border-bottom: 1px solid var(--border);
+  }
+  .market-table td {
+    display: grid;
+    grid-template-columns: minmax(88px, 34%) minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .market-table td::before {
+    content: attr(data-label);
+    color: var(--fg-dim);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .market-table td:first-child {
+    grid-template-columns: 1fr;
+    padding-top: 12px;
+  }
+  .market-table td:first-child::before {
+    display: none;
+  }
+  .market-table td:last-child {
+    border-bottom: none;
+    padding-bottom: 12px;
+  }
+  .market-table-empty {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+  }
 }
 
 .phase-chip {

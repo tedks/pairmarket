@@ -83,7 +83,7 @@ function MarketRow({
         if (e.key === "Enter" || e.key === " ") onOpen();
       }}
     >
-      <td>
+      <td data-label="Market">
         <div className="market-title-cell">
           <span className="market-title">{market.content.title}</span>
           <span className="market-sub">
@@ -91,15 +91,19 @@ function MarketRow({
           </span>
         </div>
       </td>
-      <td>{operationalizationLabel(market.operationalization)}</td>
-      <td>
+      <td data-label="Operationalization">
+        {operationalizationLabel(market.operationalization)}
+      </td>
+      <td data-label="Phase">
         <span className={`phase-chip phase-${market.phase}`}>
           {phaseLabel(market.phase)}
         </span>
       </td>
-      <td>{formatSui(payoutPool(market))}</td>
-      <td>{formatDuration(state.nowMs, market.resolutionDeadlineMs)}</td>
-      <td>
+      <td data-label="Pool">{formatSui(payoutPool(market))}</td>
+      <td data-label="Deadline">
+        {formatDuration(state.nowMs, market.resolutionDeadlineMs)}
+      </td>
+      <td data-label="Action">
         {action ? (
           <span className="action-chip">{action}</span>
         ) : (
