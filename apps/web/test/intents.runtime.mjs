@@ -8,11 +8,12 @@ function assert(condition, message) {
   }
 }
 
-function assertThrows(fn, message) {
+function assertThrows(fn, expectedMessage, message) {
   try {
     fn();
-  } catch {
-    return;
+  } catch (e) {
+    if (e instanceof Error && e.message.includes(expectedMessage)) return;
+    throw e;
   }
 
   throw new Error(message);
@@ -50,6 +51,7 @@ assertThrows(
         },
       ],
     }),
+  "operationalization deadline",
   "date-based operationalization deadline cannot be after resolution deadline",
 );
 

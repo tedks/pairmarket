@@ -22,4 +22,5 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
       - run: nix develop --command pnpm install --frozen-lockfile
+      - run: nix develop --command pnpm --filter @pairmarket/web exec playwright install --with-deps chromium
       - run: nix develop --command pnpm verify
