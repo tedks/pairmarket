@@ -1,0 +1,20 @@
+id: pm-types-no-plaintext-use-outside-response
+title: 'ESLint rule: Plaintext<T>.use(...) restricted to response-serializer module'
+desc: "Per ADR 0002 \xA73: restrict Plaintext<T>.use(...) callsites in the wallet/decrypt
+  module to the response-serializer code path. Implement as a custom ESLint rule that
+  fails CI when .use( appears outside an allowlisted module. The use() continuation
+  is the only escape hatch from the opaque Plaintext<T> wrapper; widening that hatch
+  undoes the type-level enforcement."
+type: task
+component: types
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T07:08:59-00:00
+references: []
+log_events:
+- time: 2026-06-27T07:08:59-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
