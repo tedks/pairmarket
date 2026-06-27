@@ -1,0 +1,21 @@
+id: pm-devstack-client-yaml-parser
+title: Harden devstack Sui client config editing
+desc: 'scripts/devstack.sh currently patches the Sui client YAML with a narrow text
+  replacement for the local env. Replace this with a structured YAML edit or a Sui
+  CLI-supported env update path so future client.yaml formatting changes cannot duplicate
+  or corrupt the local env block. Filed from PR #8 council review; not blocking the
+  thin-wrapper merge because the current generated Sui 1.73 client.yaml shape is covered
+  by smoke tests.'
+type: task
+component: tooling
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:31:12-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:31:12-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
