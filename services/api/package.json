@@ -3,7 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
-    "@pairmarket/core": "workspace:*"
+    "@pairmarket/core": "workspace:*",
+    "@pairmarket/wallet": "workspace:*"
   }
 }

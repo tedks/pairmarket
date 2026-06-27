@@ -9,6 +9,7 @@ import type {
   TxDigest,
   WalrusBlobId,
 } from "./ids.js";
+import { parseError } from "./validation.js";
 
 export type TxKind =
   | "create-market"
@@ -20,6 +21,18 @@ export type TxKind =
   | "claim-payout"
   | "refund"
   | "migrate-custody";
+
+const TX_KINDS = [
+  "create-market",
+  "consent-as-subject",
+  "accept-invite",
+  "place-wager",
+  "submit-attestation",
+  "open-challenge",
+  "claim-payout",
+  "refund",
+  "migrate-custody",
+] as const satisfies readonly TxKind[];
 
 export type WagerOutcome = "yes" | "no";
 
@@ -116,6 +129,31 @@ export type TxIntent<TKind extends TxKind = TxKind> = Brand<
   TxSpecFor<TKind>,
   readonly ["TxIntent", TKind]
 >;
+
+export function isTxKind(raw: unknown): raw is TxKind {
+  return (
+    typeof raw === "string" && (TX_KINDS as readonly string[]).includes(raw)
+  );
+}
+
+export function parseTxKind(raw: unknown): TxKind {
+  if (!isTxKind(raw)) {
+    throw parseError(
+      "unknown_tx_kind",
+      "TxKind must be one of the custodial wallet signing kinds",
+      raw,
+    );
+  }
+
+  return raw;
+}
+
+export function createTxIntent<TKind extends TxKind>(
+  spec: TxSpecFor<TKind>,
+): TxIntent<TKind> {
+  parseTxKind(spec.kind);
+  return spec as TxIntent<TKind>;
+}
 
 export type SignedIntent<TKind extends TxKind = TxKind> = Brand<
   {

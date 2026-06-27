@@ -3,6 +3,7 @@ import { parseError, type ParseResult, tryParse } from "./validation.js";
 
 export type UserId = Brand<string, "UserId">;
 export type TwitterSub = Brand<string, "TwitterSub">;
+export type SessionId = Brand<string, "SessionId">;
 export type SuiAddress = Brand<`0x${string}`, "SuiAddress">;
 export type SuiObjectId = Brand<`0x${string}`, "SuiObjectId">;
 export type MarketId = Brand<`0x${string}`, "MarketId">;
@@ -13,6 +14,8 @@ export type SealPolicyId = Brand<string, "SealPolicyId">;
 export type KeyRef = Brand<string, "KeyRef">;
 export type Nonce = Brand<string, "Nonce">;
 export type TxDigest = Brand<string, "TxDigest">;
+export type Sha256 = Brand<`${string}`, "Sha256">;
+export type PreviewHash = Brand<`${string}`, "PreviewHash">;
 export type PolicyEpoch = Brand<number, "PolicyEpoch">;
 export type UnixMs = Brand<number, "UnixMs">;
 export type MistAmount = Brand<bigint, "MistAmount">;
@@ -22,6 +25,7 @@ const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const VISIBLE_TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._~:/+=-]{0,511}$/;
 const NONCE_RE = /^[A-Za-z0-9_-]{22,512}$/;
 const TX_DIGEST_RE = /^[1-9A-HJ-NP-Za-km-z]{43,44}$/;
+const SHA256_RE = /^[0-9a-f]{64}$/;
 
 export function parseSuiAddress(raw: unknown): SuiAddress {
   return parseSuiHex(raw, "SuiAddress") as SuiAddress;
@@ -69,6 +73,14 @@ export function parseTwitterSub(raw: unknown): TwitterSub {
 
 export function tryParseTwitterSub(raw: unknown): ParseResult<TwitterSub> {
   return tryParse(parseTwitterSub, raw);
+}
+
+export function parseSessionId(raw: unknown): SessionId {
+  return parseOpaqueToken(raw, "SessionId", NONCE_RE) as SessionId;
+}
+
+export function tryParseSessionId(raw: unknown): ParseResult<SessionId> {
+  return tryParse(parseSessionId, raw);
 }
 
 export function parseInviteId(raw: unknown): InviteId {
@@ -125,6 +137,22 @@ export function parseTxDigest(raw: unknown): TxDigest {
 
 export function tryParseTxDigest(raw: unknown): ParseResult<TxDigest> {
   return tryParse(parseTxDigest, raw);
+}
+
+export function parseSha256(raw: unknown): Sha256 {
+  return parseOpaqueToken(raw, "Sha256", SHA256_RE) as Sha256;
+}
+
+export function tryParseSha256(raw: unknown): ParseResult<Sha256> {
+  return tryParse(parseSha256, raw);
+}
+
+export function parsePreviewHash(raw: unknown): PreviewHash {
+  return parseSha256(raw) as unknown as PreviewHash;
+}
+
+export function tryParsePreviewHash(raw: unknown): ParseResult<PreviewHash> {
+  return tryParse(parsePreviewHash, raw);
 }
 
 export function parsePolicyEpoch(raw: unknown): PolicyEpoch {
