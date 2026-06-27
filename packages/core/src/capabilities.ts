@@ -1,5 +1,6 @@
 import type { Brand } from "./brand";
-import type { MarketId, UserId } from "./ids";
+import type { MarketId, MistAmount, UserId } from "./ids";
+import type { TxKind } from "./tx";
 
 export type InviteCap = Brand<
   {
@@ -24,11 +25,29 @@ export type ResolverCap = Brand<
   "ResolverCap"
 >;
 
+export type MarketScopedTxKind = Extract<
+  TxKind,
+  | "consent-as-subject"
+  | "accept-invite"
+  | "place-wager"
+  | "submit-attestation"
+  | "open-challenge"
+  | "claim-payout"
+  | "refund"
+>;
+
+export type AccountScopedTxKind = Extract<TxKind, "create-market">;
+
 export type CustodyScope =
   | {
-      readonly kind: "sign-tx";
-      readonly market?: MarketId;
-      readonly maxAmountMist?: bigint;
+      readonly kind: "sign-market-tx";
+      readonly market: MarketId;
+      readonly txKinds: readonly MarketScopedTxKind[];
+      readonly maxAmountMist: MistAmount;
+    }
+  | {
+      readonly kind: "sign-account-tx";
+      readonly txKinds: readonly AccountScopedTxKind[];
     }
   | {
       readonly kind: "sign-attestation";

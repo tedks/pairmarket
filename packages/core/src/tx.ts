@@ -1,5 +1,14 @@
 import type { Brand } from "./brand";
-import type { MarketId, Nonce, SuiAddress } from "./ids";
+import type {
+  InviteId,
+  MarketId,
+  MistAmount,
+  Nonce,
+  PositionId,
+  SuiAddress,
+  TxDigest,
+  WalrusBlobId,
+} from "./ids";
 
 export type TxKind =
   | "create-market"
@@ -12,16 +21,99 @@ export type TxKind =
   | "refund"
   | "migrate-custody";
 
-export type TxSpec<TKind extends TxKind = TxKind> = {
+export type WagerOutcome = "yes" | "no";
+
+export type ResolutionOutcome = WagerOutcome | "invalid";
+
+type BaseTxSpec<TKind extends TxKind> = {
   readonly kind: TKind;
   readonly sender: SuiAddress;
-  readonly market?: MarketId;
   readonly nonce: Nonce;
-  readonly payload: unknown;
 };
 
+export type CreateMarketTxSpec = BaseTxSpec<"create-market"> & {
+  readonly payload: {
+    readonly termsHash: string;
+  };
+};
+
+export type ConsentAsSubjectTxSpec = BaseTxSpec<"consent-as-subject"> & {
+  readonly market: MarketId;
+  readonly payload: {
+    readonly termsHash: string;
+    readonly subjectRole: "subject-a" | "subject-b";
+  };
+};
+
+export type AcceptInviteTxSpec = BaseTxSpec<"accept-invite"> & {
+  readonly market: MarketId;
+  readonly payload: {
+    readonly invite: InviteId;
+  };
+};
+
+export type PlaceWagerTxSpec = BaseTxSpec<"place-wager"> & {
+  readonly market: MarketId;
+  readonly payload: {
+    readonly outcome: WagerOutcome;
+    readonly amountMist: MistAmount;
+  };
+};
+
+export type SubmitAttestationTxSpec = BaseTxSpec<"submit-attestation"> & {
+  readonly market: MarketId;
+  readonly payload: {
+    readonly outcome: ResolutionOutcome;
+    readonly evidence?: WalrusBlobId;
+  };
+};
+
+export type OpenChallengeTxSpec = BaseTxSpec<"open-challenge"> & {
+  readonly market: MarketId;
+  readonly payload: {
+    readonly bondMist: MistAmount;
+    readonly evidence: WalrusBlobId;
+  };
+};
+
+export type ClaimPayoutTxSpec = BaseTxSpec<"claim-payout"> & {
+  readonly market: MarketId;
+  readonly payload: {
+    readonly position: PositionId;
+  };
+};
+
+export type RefundTxSpec = BaseTxSpec<"refund"> & {
+  readonly market: MarketId;
+  readonly payload: {
+    readonly position: PositionId;
+  };
+};
+
+export type MigrateCustodyTxSpec = BaseTxSpec<"migrate-custody"> & {
+  readonly payload: {
+    readonly to: SuiAddress;
+  };
+};
+
+export type TxSpec =
+  | CreateMarketTxSpec
+  | ConsentAsSubjectTxSpec
+  | AcceptInviteTxSpec
+  | PlaceWagerTxSpec
+  | SubmitAttestationTxSpec
+  | OpenChallengeTxSpec
+  | ClaimPayoutTxSpec
+  | RefundTxSpec
+  | MigrateCustodyTxSpec;
+
+export type TxSpecFor<TKind extends TxKind> = Extract<
+  TxSpec,
+  { readonly kind: TKind }
+>;
+
 export type TxIntent<TKind extends TxKind = TxKind> = Brand<
-  TxSpec<TKind>,
+  TxSpecFor<TKind>,
   readonly ["TxIntent", TKind]
 >;
 
@@ -35,7 +127,7 @@ export type SignedIntent<TKind extends TxKind = TxKind> = Brand<
 
 export type SubmittedIntent = Brand<
   {
-    readonly digest: string;
+    readonly digest: TxDigest;
   },
   "SubmittedIntent"
 >;

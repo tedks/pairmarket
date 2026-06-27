@@ -24,7 +24,8 @@ Define dependency-free parser functions for the first primitive values and
 export a minimal `Schema<T>` adapter shape from `packages/core/src/validation.ts`.
 Consumers call `parse*` or `tryParse*` functions today. A future zod, io-ts, or
 valibot adapter can satisfy `Schema<T>` without changing the branded primitive
-call sites.
+call sites. `tryParse*` catches only `ParseError`; unexpected exceptions are
+programmer bugs and should not be counted as user input rejection.
 
 ## Consequences
 

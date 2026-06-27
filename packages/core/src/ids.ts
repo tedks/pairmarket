@@ -12,10 +12,16 @@ export type WalrusBlobId = Brand<string, "WalrusBlobId">;
 export type SealPolicyId = Brand<string, "SealPolicyId">;
 export type KeyRef = Brand<string, "KeyRef">;
 export type Nonce = Brand<string, "Nonce">;
+export type TxDigest = Brand<string, "TxDigest">;
+export type PolicyEpoch = Brand<number, "PolicyEpoch">;
+export type UnixMs = Brand<number, "UnixMs">;
+export type MistAmount = Brand<bigint, "MistAmount">;
 
-const SUI_HEX_RE = /^0x[0-9a-fA-F]{1,64}$/;
+const SUI_HEX_RE = /^0[xX][0-9a-fA-F]{1,64}$/;
 const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const VISIBLE_TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9._~:/+=-]{0,511}$/;
+const NONCE_RE = /^[A-Za-z0-9_-]{22,512}$/;
+const TX_DIGEST_RE = /^[1-9A-HJ-NP-Za-km-z]{43,44}$/;
 
 export function parseSuiAddress(raw: unknown): SuiAddress {
   return parseSuiHex(raw, "SuiAddress") as SuiAddress;
@@ -98,11 +104,51 @@ export function tryParseKeyRef(raw: unknown): ParseResult<KeyRef> {
 }
 
 export function parseNonce(raw: unknown): Nonce {
-  return parseOpaqueToken(raw, "Nonce", VISIBLE_TOKEN_RE) as Nonce;
+  return parseOpaqueToken(raw, "Nonce", NONCE_RE) as Nonce;
 }
 
 export function tryParseNonce(raw: unknown): ParseResult<Nonce> {
   return tryParse(parseNonce, raw);
+}
+
+export function parseTxDigest(raw: unknown): TxDigest {
+  return parseOpaqueToken(raw, "TxDigest", TX_DIGEST_RE) as TxDigest;
+}
+
+export function tryParseTxDigest(raw: unknown): ParseResult<TxDigest> {
+  return tryParse(parseTxDigest, raw);
+}
+
+export function parsePolicyEpoch(raw: unknown): PolicyEpoch {
+  return parseNonNegativeSafeInteger(raw, "PolicyEpoch") as PolicyEpoch;
+}
+
+export function tryParsePolicyEpoch(raw: unknown): ParseResult<PolicyEpoch> {
+  return tryParse(parsePolicyEpoch, raw);
+}
+
+export function parseUnixMs(raw: unknown): UnixMs {
+  return parseNonNegativeSafeInteger(raw, "UnixMs") as UnixMs;
+}
+
+export function tryParseUnixMs(raw: unknown): ParseResult<UnixMs> {
+  return tryParse(parseUnixMs, raw);
+}
+
+export function parseMistAmount(raw: unknown): MistAmount {
+  if (typeof raw !== "bigint" || raw < 0n) {
+    throw parseError(
+      "invalid_mist_amount",
+      "MistAmount must be a non-negative bigint",
+      raw,
+    );
+  }
+
+  return raw as MistAmount;
+}
+
+export function tryParseMistAmount(raw: unknown): ParseResult<MistAmount> {
+  return tryParse(parseMistAmount, raw);
 }
 
 function parseSuiHex(raw: unknown, label: string): `0x${string}` {
@@ -115,6 +161,10 @@ function parseSuiHex(raw: unknown, label: string): `0x${string}` {
   }
 
   const hex = raw.slice(2).toLowerCase().padStart(64, "0");
+  if (/^0+$/.test(hex)) {
+    throw parseError("invalid_sui_hex", `${label} must not be the zero address`, raw);
+  }
+
   return `0x${hex}`;
 }
 
@@ -123,6 +173,22 @@ function parseOpaqueToken(raw: unknown, label: string, pattern: RegExp): string 
     throw parseError(
       "invalid_opaque_token",
       `${label} must be a non-empty opaque token without whitespace or control characters`,
+      raw,
+    );
+  }
+
+  return raw;
+}
+
+function parseNonNegativeSafeInteger(raw: unknown, label: string): number {
+  if (
+    typeof raw !== "number" ||
+    !Number.isSafeInteger(raw) ||
+    raw < 0
+  ) {
+    throw parseError(
+      "invalid_nonnegative_integer",
+      `${label} must be a non-negative safe integer`,
       raw,
     );
   }

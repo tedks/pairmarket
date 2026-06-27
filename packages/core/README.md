@@ -16,8 +16,16 @@ root package-manager files from this branch.
   blob handles.
 - `src/capabilities.ts`, `src/custody.ts`, and `src/tx.ts` define branded
   app-layer handles used by later services.
-- `test/ids.test.ts` is a type-level smoke test intended to be compiled with
-  `tsc --noEmit` after the scaffold provides TypeScript.
+- `test/ids.types.ts` is a compile-only type smoke test intended to be checked
+  with `tsc --noEmit` after the scaffold provides TypeScript.
+
+`parse*` functions throw `ParseError`. `tryParse*` functions return
+`ParseResult<T>` for caller-controlled boundary parsing. `ParseError` stores a
+redacted input summary, not the raw rejected input.
+
+Capability brands in this package are type-level handles. They prevent honest
+app code from mixing authorization facts, but runtime authority still lives in
+Move objects, wallet-service policy checks, and SEAL policy evaluation.
 
 ## Runtime Schema Decision
 

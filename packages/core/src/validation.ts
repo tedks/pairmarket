@@ -4,15 +4,20 @@ export type ParseIssue = {
   readonly path?: readonly string[];
 };
 
+export type ParseInputSummary = {
+  readonly type: string;
+  readonly length?: number;
+};
+
 export class ParseError extends Error {
   readonly issue: ParseIssue;
-  readonly input: unknown;
+  readonly inputSummary: ParseInputSummary;
 
   constructor(issue: ParseIssue, input: unknown) {
     super(issue.message);
     this.name = "ParseError";
     this.issue = issue;
-    this.input = input;
+    this.inputSummary = summarizeInput(input);
   }
 }
 
@@ -40,11 +45,7 @@ export function tryParse<T>(schema: Schema<T>, raw: unknown): ParseResult<T> {
       return { ok: false, error };
     }
 
-    const issue: ParseIssue = {
-      code: "schema_error",
-      message: error instanceof Error ? error.message : "Schema parse failed",
-    };
-    return { ok: false, error: new ParseError(issue, raw) };
+    throw error;
   }
 }
 
@@ -57,4 +58,20 @@ export function parseError(
   const issue: ParseIssue =
     path === undefined ? { code, message } : { code, message, path };
   return new ParseError(issue, input);
+}
+
+function summarizeInput(input: unknown): ParseInputSummary {
+  if (typeof input === "string") {
+    return { type: "string", length: input.length };
+  }
+
+  if (input instanceof Uint8Array) {
+    return { type: "Uint8Array", length: input.byteLength };
+  }
+
+  if (Array.isArray(input)) {
+    return { type: "array", length: input.length };
+  }
+
+  return { type: input === null ? "null" : typeof input };
 }

@@ -1,8 +1,9 @@
 import {
-  ParseError,
   parseMarketId,
   parseSuiAddress,
-  parseTwitterSub,
+  parseNonce,
+  parseTxDigest,
+  tryParseTwitterSub,
   type MarketId,
   type PolicyBound,
   type SealCiphertext,
@@ -10,14 +11,12 @@ import {
 } from "../src/index";
 
 const address = parseSuiAddress("0x2");
-const normalized =
-  "0x0000000000000000000000000000000000000000000000000000000000000002";
-
-if (String(address) !== normalized) {
-  throw new Error("parseSuiAddress must normalize to 32-byte lowercase hex");
-}
-
 const market = parseMarketId("0x2");
+const nonce = parseNonce("1234567890123456789012");
+const digest = parseTxDigest("1111111111111111111111111111111111111111111");
+
+void nonce;
+void digest;
 
 function requireAddress(value: SuiAddress): SuiAddress {
   return value;
@@ -36,14 +35,8 @@ const forgedAddress: SuiAddress = rawString;
 
 void forgedAddress;
 
-try {
-  parseTwitterSub("");
-  throw new Error("parseTwitterSub should reject empty input");
-} catch (error) {
-  if (!(error instanceof ParseError)) {
-    throw error;
-  }
-}
+const rejectedTwitterSub = tryParseTwitterSub("");
+void rejectedTwitterSub;
 
 type MarketBody = { readonly title: string };
 type InviteBody = { readonly inviteCode: string };

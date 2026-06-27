@@ -1,5 +1,12 @@
 import type { Brand } from "./brand";
-import type { SealPolicyId, SuiObjectId, WalrusBlobId } from "./ids";
+import type {
+  Nonce,
+  PolicyEpoch,
+  SealPolicyId,
+  SuiObjectId,
+  UnixMs,
+  WalrusBlobId,
+} from "./ids";
 
 export type PolicyKind =
   | "participant"
@@ -17,6 +24,10 @@ export type Plaintext<T> = Brand<T, "Plaintext">;
 
 export type SealDerivedKey = Brand<Uint8Array, "SealDerivedKey">;
 
+export type WalrusEnvelopeVersion = "PMBLOB/v1";
+
+export type WalrusEnvelopeAlg = "seal-v1-aead";
+
 export type PolicyBound<TPlaintext> = {
   readonly blob: WalrusBlobId;
   readonly policy: SealPolicyId;
@@ -26,12 +37,12 @@ export type PolicyBound<TPlaintext> = {
 };
 
 export type WalrusEnvelopeHeader = {
-  readonly version: "PMBLOB v1";
+  readonly version: WalrusEnvelopeVersion;
   readonly contentType: string;
   readonly policyKind: PolicyKind;
   readonly scope: SuiObjectId;
-  readonly policyEpoch: number;
-  readonly nonce: string;
-  readonly alg: string;
-  readonly createdAtMs: number;
+  readonly policyEpoch: PolicyEpoch;
+  readonly nonce: Nonce;
+  readonly alg: WalrusEnvelopeAlg;
+  readonly createdAtMs: UnixMs;
 };

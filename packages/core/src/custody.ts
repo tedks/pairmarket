@@ -20,13 +20,32 @@ export type CustodyState =
       readonly owner: AccountOwner;
     };
 
+export class CustodyStateError extends Error {
+  readonly expected: CustodyState["kind"];
+  readonly actual: CustodyState["kind"];
+
+  constructor(expected: CustodyState["kind"], actual: CustodyState["kind"]) {
+    super(`Expected custody state ${expected}, got ${actual}`);
+    this.name = "CustodyStateError";
+    this.expected = expected;
+    this.actual = actual;
+  }
+}
+
+export function isCustodyState<TKind extends CustodyState["kind"]>(
+  state: CustodyState,
+  kind: TKind,
+): state is Extract<CustodyState, { readonly kind: TKind }> {
+  return state.kind === kind;
+}
+
 export function requireCustodyState<TKind extends CustodyState["kind"]>(
   state: CustodyState,
   kind: TKind,
 ): Extract<CustodyState, { readonly kind: TKind }> {
-  if (state.kind !== kind) {
-    throw new Error(`Expected custody state ${kind}, got ${state.kind}`);
+  if (!isCustodyState(state, kind)) {
+    throw new CustodyStateError(kind, state.kind);
   }
 
-  return state as Extract<CustodyState, { readonly kind: TKind }>;
+  return state;
 }
