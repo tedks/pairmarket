@@ -1,6 +1,6 @@
 import type { Brand } from "./brand.js";
 import type { MarketId, MistAmount, UserId } from "./ids.js";
-import type { TxKind } from "./tx.js";
+import type { TxIntent, TxKind } from "./tx.js";
 
 export type InviteCap = Brand<
   {
@@ -66,4 +66,29 @@ export type CustodyCap = Brand<
     readonly scope: CustodyScope;
   },
   "CustodyCap"
+>;
+
+export type SigningCustodyScope = Extract<
+  CustodyScope,
+  { readonly kind: "sign-market-tx" | "sign-account-tx" }
+>;
+
+/**
+ * Config-time helper only. It preserves literal txKinds from checked fixtures or
+ * static policy tables; runtime authorization must still inspect the concrete
+ * CustodyScope value before signing.
+ */
+export function defineSigningCustodyScope<
+  const TScope extends SigningCustodyScope,
+>(scope: TScope): TScope {
+  return scope;
+}
+
+export type CustodyScopeTxKind<TScope extends SigningCustodyScope> =
+  TScope extends { readonly txKinds: readonly (infer TKind extends TxKind)[] }
+    ? TKind
+    : never;
+
+export type CustodyScopeTxIntent<TScope extends SigningCustodyScope> = TxIntent<
+  CustodyScopeTxKind<TScope>
 >;
