@@ -39,11 +39,18 @@ log_events:
     compose/topology from the PR tree, delegated up/down/reset/status/logs/env to
     sui-devstack localnet/sui-localnet.sh, and kept pairmarket deployer/env/package-publish
     outputs in scripts/devstack.sh and docs/devstack.md.'
+- time: 2026-06-27T20:08:12-00:00
+  who: Ted Smith
+  what: referenced docs/devstack.md
+  comment: ""
 blocks:
 - pm-local-package-publish-layer
 blocked_by:
 - pm-upstream-sui-devstack-consumer-contract
 file_refs:
 - path: scripts/devstack.sh
+  line:
+  note:
+- path: docs/devstack.md
   line:
   note:
