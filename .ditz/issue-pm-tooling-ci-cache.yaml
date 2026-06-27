@@ -1,0 +1,18 @@
+id: pm-tooling-ci-cache
+title: Cache Nix and pnpm dependencies in CI
+desc: 'PR #5 CI intentionally starts minimal. Add Nix store caching and pnpm store
+  caching keyed by lockfiles once the baseline scaffold lands to reduce repeated Sui/toolchain
+  setup time.'
+type: task
+component: tooling
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T06:57:08-00:00
+references: []
+log_events:
+- time: 2026-06-27T06:57:08-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
