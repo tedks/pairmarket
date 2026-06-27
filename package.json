@@ -18,7 +18,7 @@
     "verify": "pnpm fmt:check && pnpm typecheck && pnpm docs:lint && pnpm move:build && pnpm move:test"
   },
   "devDependencies": {
-    "@types/node": "26.0.1",
+    "@types/node": "24.13.2",
     "markdownlint-cli2": "0.22.1",
     "prettier": "3.8.5",
     "typescript": "6.0.3"

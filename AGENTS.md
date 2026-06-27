@@ -36,6 +36,14 @@ The repo has a Nix flake for Phase 0 tooling. Run project tooling through it:
 nix develop --command <cmd>
 ```
 
+Phase 0 currently supports `x86_64-linux` only. The flake packages the Sui
+`mainnet-v1.73.2` Ubuntu x86_64 release used by CI; add platform-specific Sui
+tarballs before relying on `nix develop` on macOS or aarch64 machines.
+
+The flake supplies Node.js 24 and invokes pnpm through Corepack so the
+`packageManager` pin (`pnpm@11.9.0`) is honored. The first pnpm invocation may
+download that pinned pnpm release into the Corepack cache.
+
 ## Build and test
 
 Install workspace dependencies:
