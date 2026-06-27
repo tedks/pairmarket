@@ -26,7 +26,7 @@
     "web:dev": "pnpm --filter @pairmarket/web run dev",
     "web:build": "pnpm --filter @pairmarket/web run build",
     "web:e2e": "pnpm --filter @pairmarket/web run test:e2e",
-    "verify": "pnpm fmt:check && pnpm typecheck && pnpm test:runtime && pnpm docs:lint && pnpm web:build && pnpm move:build && pnpm move:test"
+    "verify": "pnpm fmt:check && pnpm typecheck && pnpm test:runtime && pnpm docs:lint && pnpm web:build && pnpm web:e2e && pnpm move:build && pnpm move:test"
   },
   "devDependencies": {
     "@types/node": "24.13.2",

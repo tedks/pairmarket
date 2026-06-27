@@ -27,7 +27,8 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
   const [subjectB, setSubjectB] = useState<UserId | "">(others[1]?.id ?? "");
   const [opKind, setOpKind] = useState<OpKindLabel>("lasts-n-dates");
   const [nDates, setNDates] = useState(3);
-  const [deadlineDays, setDeadlineDays] = useState(21);
+  const [opDeadlineDays, setOpDeadlineDays] = useState(7);
+  const [resolutionDeadlineDays, setResolutionDeadlineDays] = useState(21);
   const [invitees, setInvitees] = useState<Set<UserId>>(new Set());
   const [stakeCapSui, setStakeCapSui] = useState(2);
   const [err, setErr] = useState<string | undefined>(undefined);
@@ -37,7 +38,8 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
     subjectA !== "" &&
     subjectB !== "" &&
     subjectA !== subjectB &&
-    deadlineDays > 0;
+    resolutionDeadlineDays > 0 &&
+    (opKind === "lasts-n-dates" || opDeadlineDays > 0);
 
   return (
     <section className="create-market">
@@ -55,22 +57,25 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
           setErr(undefined);
           if (!canSubmit) return;
           try {
-            const deadlineMs = parseUnixMs(
-              (state.nowMs as number) + deadlineDays * 86_400_000,
+            const opDeadlineMs = parseUnixMs(
+              (state.nowMs as number) + opDeadlineDays * 86_400_000,
+            );
+            const resolutionDeadlineMs = parseUnixMs(
+              (state.nowMs as number) + resolutionDeadlineDays * 86_400_000,
             );
             const op: OperationalizationKind =
               opKind === "lasts-n-dates"
                 ? { kind: "lasts-n-dates", n: nDates }
                 : opKind === "together-by-date"
-                  ? { kind: "together-by-date", deadlineMs }
-                  : { kind: "meet-by-date", deadlineMs };
+                  ? { kind: "together-by-date", deadlineMs: opDeadlineMs }
+                  : { kind: "meet-by-date", deadlineMs: opDeadlineMs };
             const next = createMarketDraft(state, {
               title,
               prompt,
               subjectA: subjectA as UserId,
               subjectB: subjectB as UserId,
               operationalization: op,
-              resolutionDeadlineMs: deadlineMs,
+              resolutionDeadlineMs,
               challengeWindowMs: 2 * 86_400_000,
               invitees: [...invitees].map((id) => ({
                 invitee: id,
@@ -161,23 +166,26 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
               />
             </Field>
           ) : (
-            <Field label="Deadline (days)">
+            <Field label="Operationalization deadline (days)">
               <input
                 type="number"
                 min={1}
                 max={365}
-                value={deadlineDays}
-                onChange={(e) => setDeadlineDays(Number(e.target.value))}
+                value={opDeadlineDays}
+                onChange={(e) => setOpDeadlineDays(Number(e.target.value))}
+                data-testid="create-op-deadline-days"
               />
             </Field>
           )}
-          <Field label="Resolution window (days)">
+          <Field label="Resolution deadline (days)">
             <input
               type="number"
               min={1}
               max={365}
-              value={deadlineDays}
-              onChange={(e) => setDeadlineDays(Number(e.target.value))}
+              value={resolutionDeadlineDays}
+              onChange={(e) =>
+                setResolutionDeadlineDays(Number(e.target.value))
+              }
               data-testid="create-deadline-days"
             />
           </Field>

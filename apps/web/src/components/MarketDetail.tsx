@@ -45,6 +45,33 @@ export function MarketDetail({
   }
   const isMember = viewerIsMember(state, market);
 
+  if (!isMember) {
+    return (
+      <section className="market-detail" data-testid="market-detail">
+        <header className="market-detail-head">
+          <button
+            type="button"
+            className="back-link"
+            onClick={() => setRoute({ kind: "markets" })}
+          >
+            ← Markets
+          </button>
+        </header>
+        <h1 className="market-detail-title market-detail-title-redacted">
+          [encrypted · not a policy member]
+        </h1>
+        <div className="market-detail-grid">
+          <Card title="Private market">
+            <p className="card-empty">
+              This market is private by invitation. Details remain encrypted for
+              viewers outside the policy.
+            </p>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="market-detail" data-testid="market-detail">
       <header className="market-detail-head">
@@ -60,13 +87,7 @@ export function MarketDetail({
         </span>
       </header>
 
-      {isMember ? (
-        <h1 className="market-detail-title">{market.content.title}</h1>
-      ) : (
-        <h1 className="market-detail-title market-detail-title-redacted">
-          [encrypted · not a policy member]
-        </h1>
-      )}
+      <h1 className="market-detail-title">{market.content.title}</h1>
       <p className="market-detail-sub">
         {formatMarketId(market.id)} · created{" "}
         {formatDuration(state.nowMs, market.createdAtMs)} · deadline{" "}
@@ -87,11 +108,7 @@ export function MarketDetail({
             k="Challenge window"
             v={`${Math.round(market.challengeWindowMs / 3_600_000)}h`}
           />
-          {isMember ? (
-            <KeyVal k="Prompt" v={market.content.prompt} multiline />
-          ) : (
-            <KeyVal k="Prompt" v="[encrypted]" />
-          )}
+          <KeyVal k="Prompt" v={market.content.prompt} multiline />
         </Card>
 
         <SubjectsCard market={market} state={state} />
@@ -110,7 +127,7 @@ export function MarketDetail({
 
         <InvitesCard market={market} state={state} />
         <PositionsCard market={market} state={state} />
-        {isMember ? <ActionsCard market={market} state={state} /> : null}
+        <ActionsCard market={market} state={state} />
         <AttestationCard market={market} state={state} />
       </div>
     </section>
@@ -356,12 +373,21 @@ function ActionsCard({
   const accepted = market.invites.find(
     (i) => i.invitee === state.viewer && i.accepted,
   );
-  const canWager = market.phase === "trading" && accepted !== undefined;
+  const alreadyStaked = market.positions
+    .filter((p) => p.owner === state.viewer)
+    .reduce<bigint>((sum, p) => sum + p.amountMist, 0n);
+  const remainingStakeMist =
+    accepted === undefined
+      ? 0n
+      : accepted.maxStakeMist > alreadyStaked
+        ? accepted.maxStakeMist - alreadyStaked
+        : 0n;
+  const canWager = market.phase === "trading" && remainingStakeMist > 0n;
   return (
     <Card title="Place wager">
       {canWager ? (
         <WagerForm
-          maxStakeMist={accepted!.maxStakeMist}
+          maxStakeMist={remainingStakeMist}
           onSubmit={(outcome, amountMist) =>
             setState((s) => placeWager(s, market.id, outcome, amountMist))
           }
@@ -370,7 +396,9 @@ function ActionsCard({
         <p className="card-empty">
           {market.phase !== "trading"
             ? `Trading is closed (${phaseLabel(market.phase)}).`
-            : "Accept your invite to place a wager."}
+            : accepted === undefined
+              ? "Accept your invite to place a wager."
+              : "Stake cap reached for this invite."}
         </p>
       )}
     </Card>
@@ -499,7 +527,7 @@ function AttestationCard({
         </ul>
       )}
       {viewerSubject &&
-      (market.phase === "attestation-pending" || market.phase === "trading") &&
+      market.phase === "attestation-pending" &&
       !viewerAttested ? (
         <div className="attestation-actions">
           <button

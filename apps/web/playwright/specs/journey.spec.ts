@@ -124,5 +124,23 @@ test.describe("pairmarket prototype journey", () => {
     await expect(
       page.getByText("Will Eli and Fae go on a second date if introduced?"),
     ).toHaveCount(0);
+
+    await switchViewer(page, "ada-lovelace");
+    await openMarket(page, MARKETS.proposed);
+    await expect(
+      page.getByText("Will Eli and Fae go on a second date if introduced?"),
+    ).toBeVisible();
+
+    await switchViewer(page, "dru-haines");
+    await expect(
+      page.getByRole("heading", {
+        name: "[encrypted · not a policy member]",
+      }),
+    ).toBeVisible();
+    const detail = page.getByTestId("market-detail");
+    await expect(detail.getByText("Private market")).toBeVisible();
+    await expect(detail.getByText("Eli Ramos")).toHaveCount(0);
+    await expect(detail.getByText("Fae Shimizu")).toHaveCount(0);
+    await expect(detail.getByText("Ben Okri")).toHaveCount(0);
   });
 });

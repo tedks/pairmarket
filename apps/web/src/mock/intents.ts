@@ -281,7 +281,10 @@ export function placeWager(
     (i) => i.invitee === state.viewer && i.accepted,
   );
   if (!invite) throw new Error("viewer has no accepted invite");
-  if (amountMist > invite.maxStakeMist) {
+  const alreadyStaked = existing.positions
+    .filter((p) => p.owner === state.viewer)
+    .reduce<bigint>((sum, p) => sum + p.amountMist, 0n);
+  if (alreadyStaked + amountMist > invite.maxStakeMist) {
     throw new Error("stake exceeds invite cap");
   }
   const position: Position = {
@@ -339,6 +342,11 @@ export function submitAttestation(
 ): AppState {
   const existing = state.markets.get(marketId);
   if (!existing) throw new Error("market missing");
+  if (existing.phase !== "attestation-pending") {
+    throw new Error(
+      `market not awaiting attestation (phase=${existing.phase})`,
+    );
+  }
   const subject = existing.subjects.find((s) => s.user === state.viewer);
   if (!subject) throw new Error("viewer is not a subject");
 
