@@ -1,0 +1,20 @@
+id: pm-wallet-signing-audit-sink
+title: Persist custodial signing audit events
+desc: 'PR #9 emits typed signing audit events and supports an optional in-memory auditSink,
+  but auditSigningDecision itself is intentionally type-only and the default prototype
+  path does not durably persist events. Specify and implement the production audit
+  sink, retention, failure behavior, and plaintext-free guarantees for accepted and
+  rejected custodial signing decisions. Filed from PR #9 council review.'
+type: task
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:58:30-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:58:30-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
