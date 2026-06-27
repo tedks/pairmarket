@@ -1,0 +1,20 @@
+id: pm-privacy-subject-consent-flow
+title: Subject consent flow for P2 visibility
+desc: 'Specify the on-chain artifact and UX by which a Market''s subject (A or B)
+  opts in or out of P2 visibility. Covers markets created about subjects who have
+  never signed in. Must define: how subjects are referenced before consent (opaque
+  ids), how the id-to-handle mapping is encrypted, how revoking consent interacts
+  with already-decrypted content.'
+type: task
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:01-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:01-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
