@@ -30,6 +30,12 @@ log_events:
   comment: 'Still blocked. Pairmarket wrapper PR #8 preserves package publish as the
     app-specific layer, but publish tests should wait for both the upstream sui-devstack
     consumer contract and a Sui 1.73-compatible localnet runtime.'
+- time: 2026-06-27T20:34:18-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Thin devstack wrapper dependency is now satisfied by merged PR #8 (19f4d82).
+    This remains blocked by pm-local-devstack-sui-173-runtime for a Sui 1.73-compatible
+    localnet publish target.'
 blocked_by:
 - pm-local-devstack-sui-173-runtime
 - pm-thin-devstack-wrapper
