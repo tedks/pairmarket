@@ -1,0 +1,19 @@
+id: pm-custodial-wallet-interface
+title: Design Twitter-backed custodial wallet service
+desc: Define the Twitter OAuth to user identity mapping, custodial key generation
+  and storage, signing authorization, rate limits, abuse controls, recovery, audit
+  logging, and migration path to self-custody or zkLogin-equivalent ownership without
+  breaking existing markets.
+type: task
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:13:29-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:13:29-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
