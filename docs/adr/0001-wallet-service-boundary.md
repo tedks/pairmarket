@@ -167,11 +167,15 @@ Specifics:
   same `(user, scope, nonce)`. Nonces are therefore single-use
   forever within their replay window regardless of submit outcome.
   The replay window is bounded by GC: nonce rows are retained for
-  a window strictly greater than the envelope's
-  `expires_at_ms` ceiling (currently 5 minutes) by a safety margin
-  — the operational default is 24h. The relationship
-  `gc_window > max(expires_at_ms - issued_at_ms) + clock_skew_budget`
-  is what enforces safety, not the literal 24h.
+  a window strictly greater than the maximum envelope lifetime —
+  the constraint is `gc_window > envelope_ttl_max +
+  clock_skew_budget`, where `envelope_ttl_max` is the 5-minute
+  ceiling imposed on `expires_at_ms` (see `IntentEnvelope` in §1).
+  The operational default is 24h, which has ample headroom for
+  the 5-minute TTL plus realistic clock skew. The safety condition
+  is the inequality, not the literal 24h; a future raise to
+  `envelope_ttl_max` must come with a matching raise to
+  `gc_window`.
 
   This replaces the prior wording's "freshness check"; that wording
   was a TOCTOU race.
