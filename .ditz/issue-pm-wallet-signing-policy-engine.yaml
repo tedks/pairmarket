@@ -50,6 +50,14 @@ log_events:
   who: Ted Smith
   what: blocked by pm-wallet-server-issued-signing-grants
   comment: ""
+- time: 2026-06-27T20:58:42-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #9 now covers the prototype policy gate: registered sessions, sender
+    binding, preview-hash recomputation, runtime custodyCap scope checks, salted keyRef
+    audit fingerprinting, and runtime branch tests. Production completion remains
+    blocked by client-derived preview binding, object-version pinning, durable audit
+    sink, replay protection, and server-issued grants/caps.'
 blocks:
 - pm-custodial-wallet-interface
 blocked_by:
