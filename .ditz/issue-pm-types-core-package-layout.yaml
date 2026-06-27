@@ -7,8 +7,8 @@ type: task
 component: architecture
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-27T05:17:27-00:00
 references: []
 log_events:
@@ -36,3 +36,9 @@ log_events:
     surface is tiny and scaffold merge risk is low; deferred real runtime test runner
     wiring to scaffold/tooling, while renaming the current smoke file to ids.types.ts
     so it is clearly compile-only.'
+- time: 2026-06-27T17:09:59-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged PR #2 into master: packages/core now has the source-only workspace
+    layout, branded primitives, parser boundary ADR, and compile-time smoke coverage.
+    Move-generated decoder work remains in separate follow-ups.'
