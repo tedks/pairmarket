@@ -7,8 +7,8 @@ type: task
 component: tooling
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-27T17:11:56-00:00
 references: []
 log_events:
@@ -20,3 +20,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T17:33:02-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: Added Docker-backed Sui Localnet devstack with isolated client config,
+    faucet funding, env-file generation, docs, package scripts, reset/status/log
+    commands, and verified devstack:up/env. Pairmarket package publish is blocked
+    separately by pm-local-devstack-sui-173-runtime.
