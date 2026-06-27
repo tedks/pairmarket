@@ -1,0 +1,19 @@
+id: pm-privacy-key-server-set
+title: SEAL key-server set for MVP
+desc: Choose SEAL key-server committee for MVP. Mysten-operated default vs self-hosted
+  threshold set. Drives the trust model (who can decrypt under compromise) and the
+  auditability story (who logs key-share requests). Should also specify the threshold
+  parameters (t-of-n) and the rotation/incident-response process for a server compromise.
+type: task
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:16:38-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:16:38-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
