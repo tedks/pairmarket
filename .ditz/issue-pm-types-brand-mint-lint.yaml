@@ -1,0 +1,19 @@
+id: pm-types-brand-mint-lint
+title: 'Lint: brands minted only via parse'
+desc: Enforce that all branded types in core/ are minted only inside parse* functions.
+  Implement as a custom eslint rule that bans 'as <Brand>' casts and a __BRAND_MINT__
+  marker permitted only inside parse functions. Subagent type-system-strategy sketch
+  depends on this for the brand invariant to be load-bearing.
+type: task
+component: tooling
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:21-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:21-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
