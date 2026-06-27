@@ -1,0 +1,19 @@
+id: pm-web-prototype-journey-coverage
+title: Broaden prototype web journey coverage
+desc: 'Follow-up from PR #10 council nits. Add targeted Playwright/runtime coverage
+  for decline/cancelled flows, cumulative cap exceed UI, disagreeing attestations,
+  and successful CreateMarket submission so the prototype journey tests cover more
+  than the happy path.'
+type: task
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T21:28:06-00:00
+references: []
+log_events:
+- time: 2026-06-27T21:28:06-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
