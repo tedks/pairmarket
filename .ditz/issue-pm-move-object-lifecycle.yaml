@@ -21,3 +21,37 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T06:37:01-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Move package scaffolded on agent/contracts-core (commits 6b6a2db..a2078da).
+
+    contracts/pairmarket/ implements Market<T>, InviteTicket, Position<T>, the
+
+    eight-state lifecycle, subject co-attestation with mismatch reset, an MVP
+
+    single-signer committee verdict path, and the O(1) claim/refund payout
+
+    split. Seven unit tests pass under local sui 1.57.2 covering: happy-path
+
+    YES settle, cancel-refunds-full-stake, double-claim abort (code 11),
+
+    unknown-outcome abort (code 6), fee-cap abort (code 12),
+
+    attestation-mismatch-resets-round, and binary escrow conservation.
+
+
+    BLOCKED gate: canonical build/test under Nix-pinned mainnet-v1.73.2 (per
+
+    docs/design.md). The flake belongs on agent/scaffold-toolchain; until it
+
+    lands, the 1.57.2 transcript in .planning/contracts-core-execplan.md is
+
+    informational only.
+
+
+    Follow-ups still in scope of this issue: 3-of-5 threshold committee
+
+    signature accumulation; challenge bond collection in open_challenge;
+
+    read-only accessors for subjects/consents.'
