@@ -108,12 +108,15 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
           }
         }}
         onSignOut={async () => {
-          if (connection.wallet !== null) {
+          if (connection.wallet != null) {
             try {
               await dAppKit.disconnectWallet();
             } catch {
-              setWalletError("Wallet disconnect failed");
-              return;
+              localStorage.removeItem(WALLET_STORAGE_KEY);
+              if (custody.kind === "self-custody") {
+                setWalletError("Wallet disconnect failed");
+                return;
+              }
             }
           } else {
             localStorage.removeItem(WALLET_STORAGE_KEY);
@@ -144,7 +147,8 @@ function walletConnectErrorMessage(error: unknown): string {
   if (
     code === 4001 ||
     code === "4001" ||
-    (error instanceof Error && /cancel|reject|deni|abort/i.test(error.message))
+    (error instanceof Error &&
+      /\b(cancel|reject|denied|deny|abort)/i.test(error.message))
   ) {
     return "Wallet connection canceled";
   }
@@ -225,6 +229,7 @@ function CustodyPill({
             disabled={connectingWallet}
             data-testid="wallet-select"
           >
+            {/* DAppKit exposes wallet names as the stable public selector. */}
             {wallets.map((wallet) => (
               <option key={wallet.name} value={wallet.name}>
                 {wallet.name}
