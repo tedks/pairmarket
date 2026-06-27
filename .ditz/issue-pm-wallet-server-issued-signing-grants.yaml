@@ -1,0 +1,20 @@
+id: pm-wallet-server-issued-signing-grants
+title: Server-issued signing grants and custody cap binding
+desc: 'PR #9 validates the runtime shape and scope of SigningGrant.custodyCap, but
+  the grant/cap is still caller-provided prototype data. Replace fabricated input
+  grants with server-issued or store-looked-up grants/caps, bind them to user/session/market
+  policy, and ensure clients cannot mint authority by constructing branded objects.
+  Filed from PR #9 council review.'
+type: feature
+component: wallet
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T20:58:30-00:00
+references: []
+log_events:
+- time: 2026-06-27T20:58:30-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
