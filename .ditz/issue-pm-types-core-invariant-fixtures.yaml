@@ -8,8 +8,8 @@ type: task
 component: types
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-27T20:02:45-00:00
 references: []
 log_events:
@@ -21,3 +21,9 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-27T20:08:21-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'PR #7 adds the focused core type fixtures and supporting type-only scaffolds
+    for brand minting boundaries, opaque plaintext, wallet signing scopes, and network/env
+    fixture typing.'

@@ -24,3 +24,10 @@ log_events:
     has no scaffold or eslint setup. The initial core code keeps brand casts inside
     parse* functions and adds a tsc smoke test; the lint rule remains required once
     tooling lands.
+- time: 2026-06-27T20:08:21-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'PR #7 adds TypeScript fixtures for brand minting boundaries but intentionally
+    does not implement the custom ESLint rule. Remaining scope: add ESLint tooling
+    and a rule that bans branded casts outside approved parse/factory minting functions,
+    including KeyRef minting outside wallet-service mintKeyRef once that module exists.'
