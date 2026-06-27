@@ -17,3 +17,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-06-27T05:17:08-00:00
+  who: Ted Smith
+  what: blocked by pm-privacy-key-server-set
+  comment: ""
+blocked_by:
+- pm-privacy-key-server-set
