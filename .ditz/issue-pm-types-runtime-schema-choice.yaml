@@ -16,3 +16,10 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-06-27T06:31:00-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'agent/ts-core records ADR 0001: defer selecting zod/io-ts/valibot until
+    the scaffold pins package manager, bundle constraints, and test runner. packages/core
+    exposes dependency-free parse*/tryParse* functions plus a minimal Schema<T> adapter
+    so the later library choice does not churn callers.'
