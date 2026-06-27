@@ -47,9 +47,10 @@ v2 replacement for the dispute committee.
   - They see: question text, operationalization, resolution deadline,
     *count* of participants, *aggregate* implied probability.
   - They do **not** see: per-participant positions or identities.
-- This is enforced by SEAL policy on the participant-roster blob and the
-  per-position blobs; the Move object only stores commitments
-  (`hash(participant_addr || nonce)`), not addresses, until settlement.
+- This is enforced at the application/content layer: the app does not disclose
+  participant-roster blobs or per-position metadata to subjects by default.
+  The Sui layer still exposes redeemed wallet addresses and position objects
+  to chain observers; MVP explicitly accepts that leakage.
 - Subjects opt-in to seeing identities at market end (post-finalization); a
   market-creation flag can hide identities forever (default for MVP: hide).
 - Open question: should subjects see the *list* of inviters even with
@@ -75,9 +76,10 @@ v2 replacement for the dispute committee.
   to look at.
 - When provided, evidence is one Walrus blob per attestation containing a
   short free-text claim and any attachments. Encrypted under a SEAL policy
-  that grants read to: both subjects, all participants, and the dispute
-  committee (the last only conditional on a live challenge - encoded as a
-  policy predicate on a `ChallengeOpen` capability object).
+  that grants read to the subjects and resolver by default, grants the dispute
+  committee read access only while a live challenge exists, and grants
+  participant read access after finalization only if the market's disclosure
+  setting allows it.
 - Only the Walrus blob id + content hash + SEAL policy id are stored
   on-chain. No plaintext, no PII on-chain.
 - Hash binding: each attestation signs over `(market_id, outcome,
