@@ -1,0 +1,19 @@
+id: pm-web-needs-you-filter
+title: Make Needs you navigation filter actionable markets
+desc: 'Follow-up from PR #10 council nits. The sidebar computes a Needs you count
+  but currently routes to the unfiltered market list. Add an actionable filter/view
+  so the nav item lands users on markets requiring their consent, attestation, invite
+  acceptance, wager, or claim.'
+type: feature
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T21:27:51-00:00
+references: []
+log_events:
+- time: 2026-06-27T21:27:51-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
