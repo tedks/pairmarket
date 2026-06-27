@@ -1,0 +1,19 @@
+id: pm-privacy-custodial-decrypt-logging
+title: Custodial backend decrypt logging policy
+desc: When the custodial backend decrypts on a user's behalf, what does it log, where,
+  and who can read those logs? Affects auditability (s.9), incident response, and
+  the threat-model claim about backend compromise. Must specify retention and whether
+  plaintext ever touches log storage (it must not).
+type: task
+component: privacy
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-27T05:17:02-00:00
+references: []
+log_events:
+- time: 2026-06-27T05:17:02-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
