@@ -43,6 +43,12 @@ log_events:
   who: Ted Smith
   what: referenced docs/devstack.md
   comment: ""
+- time: 2026-06-27T20:09:19-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Opened draft replacement PR #8 against master: https://github.com/tedks/pairmarket/pull/8.
+    It supersedes PR #6 rather than stacking on it because the final pairmarket diff
+    should not carry generic localnet orchestration.'
 blocks:
 - pm-local-package-publish-layer
 blocked_by:
