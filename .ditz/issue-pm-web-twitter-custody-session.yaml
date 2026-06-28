@@ -8,8 +8,8 @@ type: feature
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-28T00:07:56-00:00
 references: []
 log_events:
@@ -17,3 +17,8 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-06-28T00:07:57-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Merged PR #12 as 80cf461 with local/GitHub verify green and live Playwright
+    smoke passing.'
