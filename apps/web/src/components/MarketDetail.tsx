@@ -23,6 +23,8 @@ import {
 } from "../mock/intents.ts";
 import { setState } from "../mock/store.ts";
 
+const DEFAULT_WAGER_MIST = 500_000_000n;
+
 type Props = {
   readonly state: AppState;
   readonly marketId: MarketId;
@@ -387,6 +389,7 @@ function ActionsCard({
     <Card title="Place wager">
       {canWager ? (
         <WagerForm
+          key={remainingStakeMist.toString()}
           maxStakeMist={remainingStakeMist}
           onSubmit={(outcome, amountMist) =>
             setState((s) => placeWager(s, market.id, outcome, amountMist))
@@ -416,7 +419,7 @@ function WagerForm({
   ) => void;
 }): JSX.Element {
   const [outcome, setOutcome] = useState<WagerOutcome>("yes");
-  const [stake, setStake] = useState("0.5");
+  const [stake, setStake] = useState(() => defaultStakeInput(maxStakeMist));
   const max = useMemo(
     () => Number(maxStakeMist) / 1_000_000_000,
     [maxStakeMist],
@@ -492,6 +495,19 @@ function WagerForm({
       </button>
     </form>
   );
+}
+
+function defaultStakeInput(maxStakeMist: bigint): string {
+  const mist =
+    maxStakeMist < DEFAULT_WAGER_MIST ? maxStakeMist : DEFAULT_WAGER_MIST;
+  return formatMistInput(mist);
+}
+
+function formatMistInput(mist: bigint): string {
+  const whole = mist / 1_000_000_000n;
+  const fractional = mist % 1_000_000_000n;
+  if (fractional === 0n) return whole.toString();
+  return `${whole}.${fractional.toString().padStart(9, "0").replace(/0+$/, "")}`;
 }
 
 function AttestationCard({
