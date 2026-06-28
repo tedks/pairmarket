@@ -4,8 +4,8 @@ import { createHash, randomUUID } from "node:crypto";
 
 import {
   parseSessionId,
-  parseUserId,
   toolchainPins,
+  userIdFromTwitterSub,
   type SessionId,
   type TwitterSub,
   type TxIntent,
@@ -87,10 +87,6 @@ export function createPrototypeAuthApi(
   }
 
   return { signInWithTwitter, signPolicyGatedIntent };
-}
-
-function userIdFromTwitterSub(sub: TwitterSub): UserId {
-  return parseUserId(`twitter:${sub}`);
 }
 
 function sessionIdFromTwitterSub(sub: TwitterSub): SessionId {

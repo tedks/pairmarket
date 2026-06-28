@@ -72,6 +72,10 @@ export function AccountPanel({ state, custody }: Props): JSX.Element {
                 <span className="kv-v mono">{custody.sub}</span>
               </div>
               <div className="kv">
+                <span className="kv-k">Custodial user</span>
+                <span className="kv-v mono">{custody.userId}</span>
+              </div>
+              <div className="kv">
                 <span className="kv-k">Sui address</span>
                 <span className="kv-v mono">{custody.address}</span>
               </div>
@@ -125,9 +129,9 @@ function describeOwner(
 ): string {
   switch (owner.kind) {
     case "custodial":
-      return `custodial · ${owner.keyRef}`;
+      return "custodial";
     case "migrating":
-      return `migrating · ${owner.from} → ${owner.to}`;
+      return `migrating · ${owner.to}`;
     case "self-custody":
       return `self-custody · ${owner.address}`;
     case "locked":

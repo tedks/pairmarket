@@ -1,4 +1,11 @@
-import type { KeyRef, Nonce, SuiAddress, TwitterSub } from "./ids.js";
+import type {
+  KeyRef,
+  Nonce,
+  SessionId,
+  SuiAddress,
+  TwitterSub,
+  UserId,
+} from "./ids.js";
 import type { SuiNetwork } from "./network.js";
 
 export type AccountOwner =
@@ -6,6 +13,15 @@ export type AccountOwner =
   | {
       readonly kind: "migrating";
       readonly from: KeyRef;
+      readonly to: SuiAddress;
+    }
+  | { readonly kind: "self-custody"; readonly address: SuiAddress }
+  | { readonly kind: "locked"; readonly reason: string };
+
+export type PublicAccountOwner =
+  | { readonly kind: "custodial" }
+  | {
+      readonly kind: "migrating";
       readonly to: SuiAddress;
     }
   | { readonly kind: "self-custody"; readonly address: SuiAddress }
@@ -23,8 +39,10 @@ export type CustodyState =
   | {
       readonly kind: "linked";
       readonly sub: TwitterSub;
+      readonly userId: UserId;
+      readonly sessionId: SessionId;
       readonly address: SuiAddress;
-      readonly owner: AccountOwner;
+      readonly owner: PublicAccountOwner;
     };
 
 export class CustodyStateError extends Error {

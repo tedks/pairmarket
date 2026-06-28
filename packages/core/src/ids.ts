@@ -75,6 +75,10 @@ export function tryParseTwitterSub(raw: unknown): ParseResult<TwitterSub> {
   return tryParse(parseTwitterSub, raw);
 }
 
+export function userIdFromTwitterSub(sub: TwitterSub): UserId {
+  return parseUserId(sub.startsWith("twitter:") ? sub : `twitter:${sub}`);
+}
+
 export function parseSessionId(raw: unknown): SessionId {
   return parseOpaqueToken(raw, "SessionId", NONCE_RE) as SessionId;
 }
