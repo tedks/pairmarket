@@ -11,7 +11,7 @@ import { SelfCustodyBridge } from "./components/SelfCustodyBridge.tsx";
 import { useAppState, useCustody } from "./mock/store.ts";
 
 export type Route =
-  | { readonly kind: "markets" }
+  | { readonly kind: "markets"; readonly filter: "all" | "needs-you" }
   | { readonly kind: "market"; readonly id: MarketId }
   | { readonly kind: "new" }
   | { readonly kind: "account" };
@@ -19,7 +19,7 @@ export type Route =
 export function App(): JSX.Element {
   const state = useAppState();
   const custody = useCustody();
-  const [route, setRoute] = useState<Route>({ kind: "markets" });
+  const [route, setRoute] = useState<Route>({ kind: "markets", filter: "all" });
 
   const viewerProfile = useMemo(
     () => state.users.get(state.viewer),
@@ -39,7 +39,11 @@ export function App(): JSX.Element {
         <Sidebar route={route} setRoute={setRoute} state={state} />
         <main className="app-main">
           {route.kind === "markets" ? (
-            <MarketList state={state} setRoute={setRoute} />
+            <MarketList
+              state={state}
+              filter={route.filter}
+              setRoute={setRoute}
+            />
           ) : route.kind === "market" ? (
             <MarketDetail
               state={state}

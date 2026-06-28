@@ -9,23 +9,31 @@ import {
   formatDuration,
 } from "../format.ts";
 import { payoutPool, viewerIsMember } from "../mock/intents.ts";
+import { viewerMarketAction } from "../market-actions.ts";
 
 type Props = {
   readonly state: AppState;
+  readonly filter: "all" | "needs-you";
   readonly setRoute: (r: Route) => void;
 };
 
-export function MarketList({ state, setRoute }: Props): JSX.Element {
-  const markets = [...state.markets.values()]
+export function MarketList({ state, filter, setRoute }: Props): JSX.Element {
+  const memberMarkets = [...state.markets.values()]
     .filter((m) => viewerIsMember(state, m))
     .sort((a, b) => phaseSortRank(a) - phaseSortRank(b));
+  const markets =
+    filter === "needs-you"
+      ? memberMarkets.filter((m) => viewerMarketAction(state, m))
+      : memberMarkets;
 
   return (
     <section className="market-list">
       <div className="market-list-head">
-        <h1>Your markets</h1>
+        <h1>{filter === "needs-you" ? "Needs you" : "Your markets"}</h1>
         <p className="market-list-sub">
-          {markets.length} visible · private by invitation
+          {filter === "needs-you"
+            ? `${markets.length} actionable · ${memberMarkets.length} visible total`
+            : `${markets.length} visible · private by invitation`}
         </p>
       </div>
       <table className="market-table" role="table">
@@ -51,7 +59,9 @@ export function MarketList({ state, setRoute }: Props): JSX.Element {
           {markets.length === 0 ? (
             <tr>
               <td colSpan={6} className="market-table-empty">
-                No markets yet. Create one or wait for an invite.
+                {filter === "needs-you"
+                  ? "No markets need action from you."
+                  : "No markets yet. Create one or wait for an invite."}
               </td>
             </tr>
           ) : null}
@@ -71,7 +81,7 @@ function MarketRow({
   readonly onOpen: () => void;
 }): JSX.Element {
   const role = describeViewerRole(state, market);
-  const action = describeAction(state, market);
+  const action = viewerMarketAction(state, market);
   return (
     <tr
       className="market-row"
@@ -121,39 +131,6 @@ function describeViewerRole(state: AppState, market: Market): string {
   const inv = market.invites.find((i) => i.invitee === state.viewer);
   if (inv) return inv.accepted ? "participant" : "invitee";
   return "observer";
-}
-
-function describeAction(state: AppState, market: Market): string | undefined {
-  const subj = market.subjects.find((s) => s.user === state.viewer);
-  if (subj && subj.consent.status === "pending") return "Consent required";
-  if (
-    market.phase === "attestation-pending" &&
-    subj &&
-    !market.attestations.some((a) => a.attestor === state.viewer)
-  )
-    return "Attest outcome";
-  const invite = market.invites.find(
-    (i) => i.invitee === state.viewer && !i.accepted,
-  );
-  if (invite && (market.phase === "trading" || market.phase === "proposed"))
-    return "Accept invite";
-  const open = market.invites.find(
-    (i) => i.invitee === state.viewer && i.accepted,
-  );
-  const hasPosition = market.positions.some((p) => p.owner === state.viewer);
-  if (open && market.phase === "trading" && !hasPosition) return "Place wager";
-  if (
-    market.phase === "settled" &&
-    market.positions.some(
-      (p) =>
-        p.owner === state.viewer &&
-        !p.claimed &&
-        (market.settledOutcome === "invalid" ||
-          p.outcome === market.settledOutcome),
-    )
-  )
-    return "Claim payout";
-  return undefined;
 }
 
 function phaseSortRank(m: Market): number {

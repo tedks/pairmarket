@@ -42,7 +42,9 @@ export function MarketDetail({
     return (
       <section className="market-detail">
         <p>Market not found.</p>
-        <button onClick={() => setRoute({ kind: "markets" })}>Back</button>
+        <button onClick={() => setRoute({ kind: "markets", filter: "all" })}>
+          Back
+        </button>
       </section>
     );
   }
@@ -55,7 +57,7 @@ export function MarketDetail({
           <button
             type="button"
             className="back-link"
-            onClick={() => setRoute({ kind: "markets" })}
+            onClick={() => setRoute({ kind: "markets", filter: "all" })}
           >
             ← Markets
           </button>
@@ -81,7 +83,7 @@ export function MarketDetail({
         <button
           type="button"
           className="back-link"
-          onClick={() => setRoute({ kind: "markets" })}
+          onClick={() => setRoute({ kind: "markets", filter: "all" })}
         >
           ← Markets
         </button>
