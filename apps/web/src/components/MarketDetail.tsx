@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MarketId, WagerOutcome } from "@pairmarket/core";
 import { parseMistAmount } from "@pairmarket/core";
 import type { Route } from "../App.tsx";
@@ -23,6 +23,7 @@ import {
 } from "../mock/intents.ts";
 import { setState } from "../mock/store.ts";
 
+// Suggested wager amount; clamped down to the viewer's remaining invite cap.
 const DEFAULT_WAGER_MIST = 500_000_000n;
 
 type Props = {
@@ -389,7 +390,6 @@ function ActionsCard({
     <Card title="Place wager">
       {canWager ? (
         <WagerForm
-          key={remainingStakeMist.toString()}
           maxStakeMist={remainingStakeMist}
           onSubmit={(outcome, amountMist) =>
             setState((s) => placeWager(s, market.id, outcome, amountMist))
@@ -419,7 +419,14 @@ function WagerForm({
   ) => void;
 }): JSX.Element {
   const [outcome, setOutcome] = useState<WagerOutcome>("yes");
-  const [stake, setStake] = useState(() => defaultStakeInput(maxStakeMist));
+  const defaultStake = useMemo(
+    () => defaultStakeInput(maxStakeMist),
+    [maxStakeMist],
+  );
+  const [stake, setStake] = useState(defaultStake);
+  useEffect(() => {
+    setStake(defaultStake);
+  }, [defaultStake]);
   const max = useMemo(
     () => Number(maxStakeMist) / 1_000_000_000,
     [maxStakeMist],
@@ -476,7 +483,7 @@ function WagerForm({
         <span>Stake (SUI)</span>
         <input
           type="number"
-          step="0.01"
+          step="0.000000001"
           min="0"
           max={max}
           value={stake}

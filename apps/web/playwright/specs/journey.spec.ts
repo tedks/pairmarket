@@ -116,6 +116,7 @@ test.describe("pairmarket prototype journey", () => {
     await page.getByTestId("wager-amount").fill("0.4");
     await page.getByTestId("wager-submit").click();
 
+    await expect(page.getByTestId("wager-no")).toBeChecked();
     await expect(page.getByTestId("wager-amount")).toHaveValue("0.1");
     await expect(page.locator(".wager-meta")).toContainText("cap 0.1 SUI");
     await expect(page.getByTestId("wager-submit")).toBeEnabled();
