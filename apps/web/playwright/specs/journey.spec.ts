@@ -40,6 +40,68 @@ test.describe("pairmarket prototype journey", () => {
     ).toBeVisible();
   });
 
+  test("Needs you navigation filters to viewer actions and can return to all markets", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    await page.getByRole("button", { name: /Needs you/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "Needs you" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("2 actionable · 4 visible total"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Ada and Cleo still be together end of Q4?"),
+    ).toBeVisible();
+    await expect(page.getByText("Did Ben and Dru last 3 dates?")).toBeVisible();
+    await expect(page.getByText("Attest outcome")).toBeVisible();
+    await expect(page.getByText("Claim payout")).toBeVisible();
+    await expect(page.getByText("Will Cleo and Dru last 3 dates?")).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByText("Will Eli and Fae go on a second date if introduced?"),
+    ).toHaveCount(0);
+
+    await page.getByRole("button", { name: /^Markets/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "Your markets" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Cleo and Dru last 3 dates?"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Eli and Fae go on a second date if introduced?"),
+    ).toBeVisible();
+
+    await switchViewer(page, "ben-okri");
+    await page.getByRole("button", { name: /Needs you/ }).click();
+    await expect(
+      page.getByText("2 actionable · 4 visible total"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Cleo and Dru last 3 dates?"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Eli and Fae go on a second date if introduced?"),
+    ).toBeVisible();
+    await expect(page.getByText("Place wager")).toBeVisible();
+    await expect(page.getByText("Accept invite")).toBeVisible();
+
+    await page.getByRole("button", { name: /^Markets/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "Your markets" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Cleo and Dru last 3 dates?"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Ada and Cleo still be together end of Q4?"),
+    ).toBeVisible();
+  });
+
   test("twitter custody remains available as a fallback sign-in", async ({
     page,
   }) => {

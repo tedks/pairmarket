@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import type { Route } from "../App.tsx";
 import type { AppState } from "../types.ts";
 import { viewerIsMember } from "../mock/intents.ts";
+import { viewerMarketAction } from "../market-actions.ts";
 
 type SidebarProps = {
   readonly route: Route;
@@ -13,42 +14,27 @@ export function Sidebar({ route, setRoute, state }: SidebarProps): JSX.Element {
   const memberMarkets = [...state.markets.values()].filter((m) =>
     viewerIsMember(state, m),
   );
-  const needsAction = memberMarkets.filter((m) => {
-    const subj = m.subjects.find((s) => s.user === state.viewer);
-    if (subj && subj.consent.status === "pending") return true;
-    if (
-      m.phase === "attestation-pending" &&
-      m.subjects.some((s) => s.user === state.viewer) &&
-      !m.attestations.some((a) => a.attestor === state.viewer)
-    )
-      return true;
-    if (
-      m.phase === "settled" &&
-      m.positions.some(
-        (p) =>
-          p.owner === state.viewer &&
-          !p.claimed &&
-          (m.settledOutcome === "invalid" || p.outcome === m.settledOutcome),
-      )
-    )
-      return true;
-    return false;
-  }).length;
+  const needsAction = memberMarkets.filter((m) =>
+    viewerMarketAction(state, m),
+  ).length;
 
   return (
     <nav className="app-sidebar" aria-label="primary">
       <NavItem
         label="Markets"
         badge={memberMarkets.length}
-        active={route.kind === "markets" || route.kind === "market"}
-        onClick={() => setRoute({ kind: "markets" })}
+        active={
+          route.kind === "market" ||
+          (route.kind === "markets" && route.filter === "all")
+        }
+        onClick={() => setRoute({ kind: "markets", filter: "all" })}
       />
       <NavItem
         label="Needs you"
         badge={needsAction}
         emphasize={needsAction > 0}
-        active={false}
-        onClick={() => setRoute({ kind: "markets" })}
+        active={route.kind === "markets" && route.filter === "needs-you"}
+        onClick={() => setRoute({ kind: "markets", filter: "needs-you" })}
       />
       <NavItem
         label="New market"

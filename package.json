@@ -21,7 +21,7 @@
     "fmt:check": "prettier --check \"**/*.{json,jsonc,yml,yaml,ts,tsx}\"",
     "move:build": "sui move build --path contracts/pairmarket --build-env mainnet",
     "move:test": "sui move test --path contracts/pairmarket --build-env mainnet",
-    "test:runtime": "tsx packages/core/test/plaintext.runtime.mjs && tsx packages/core/test/ids.runtime.mjs && tsx services/wallet/test/wallet.runtime.mjs && tsx services/api/test/auth.runtime.mjs && tsx apps/web/test/intents.runtime.mjs && tsx apps/web/test/self-custody.runtime.mjs && tsx apps/web/test/twitter-custody.runtime.mjs && tsx apps/web/test/viewer-custody.runtime.mjs",
+    "test:runtime": "tsx packages/core/test/plaintext.runtime.mjs && tsx packages/core/test/ids.runtime.mjs && tsx services/wallet/test/wallet.runtime.mjs && tsx services/api/test/auth.runtime.mjs && tsx apps/web/test/intents.runtime.mjs && tsx apps/web/test/market-actions.runtime.mjs && tsx apps/web/test/self-custody.runtime.mjs && tsx apps/web/test/twitter-custody.runtime.mjs && tsx apps/web/test/viewer-custody.runtime.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --filter @pairmarket/web run typecheck",
     "web:dev": "pnpm --filter @pairmarket/web run dev",
     "web:build": "pnpm --filter @pairmarket/web run build",

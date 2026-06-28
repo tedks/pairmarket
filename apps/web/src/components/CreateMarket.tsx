@@ -95,7 +95,7 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
             // Navigate to the newly created market: it's the latest.
             const latest = [...next.markets.values()].at(-1);
             if (latest) setRoute({ kind: "market", id: latest.id });
-            else setRoute({ kind: "markets" });
+            else setRoute({ kind: "markets", filter: "all" });
           } catch (e) {
             setErr(e instanceof Error ? e.message : String(e));
           }
@@ -245,7 +245,7 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
           <button
             type="button"
             className="btn"
-            onClick={() => setRoute({ kind: "markets" })}
+            onClick={() => setRoute({ kind: "markets", filter: "all" })}
           >
             Cancel
           </button>
