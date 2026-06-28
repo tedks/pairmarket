@@ -4,6 +4,7 @@ import {
   parseSuiAddress,
   parseTwitterSub,
   parseUserId,
+  userIdFromTwitterSub,
 } from "@pairmarket/core";
 import {
   getCustody,
@@ -73,10 +74,12 @@ assert(
 );
 
 resetMockState();
+assert(getState().viewer === ada, "seed viewer resets to Ada");
+const twitterAda = parseTwitterSub("twitter:ada");
 setCustody({
   kind: "linked",
-  sub: parseTwitterSub("twitter:ada"),
-  userId: parseUserId("twitter:ada"),
+  sub: twitterAda,
+  userId: userIdFromTwitterSub(twitterAda),
   sessionId: parseSessionId("twitter_session_1234567890"),
   address: parseSuiAddress("0xada"),
   owner: { kind: "custodial" },
