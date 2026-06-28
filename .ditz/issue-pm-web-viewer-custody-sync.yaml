@@ -7,8 +7,8 @@ type: task
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-06-27T21:28:15-00:00
 references: []
 log_events:
@@ -20,3 +20,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-06-28T00:42:32-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Implemented: dev viewer changes now clear linked/pending Twitter custody,
+    while preserving external self-custody; runtime and Playwright tests pin the policy.'
