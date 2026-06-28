@@ -438,13 +438,6 @@ export function setNow(state: AppState, now: number): AppState {
   return { ...state, nowMs: parseUnixMs(now) };
 }
 
-export function setViewer(
-  state: AppState,
-  viewer: AppState["viewer"],
-): AppState {
-  return { ...state, viewer };
-}
-
 // Helpers for UI components — derived selectors.
 export function payoutPool(market: Market): bigint {
   return market.positions.reduce(

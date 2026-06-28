@@ -48,6 +48,27 @@ export function setCustody(next: CustodyState): void {
   notify();
 }
 
+export function setPrototypeViewer(viewer: AppState["viewer"]): void {
+  if (viewer === state.viewer) return;
+  if (!state.users.has(viewer)) {
+    throw new Error(`Unknown viewer ${viewer}`);
+  }
+
+  state = { ...state, viewer };
+  custody = custodyAfterViewerChange(custody);
+  notify();
+}
+
+function custodyAfterViewerChange(current: CustodyState): CustodyState {
+  // Dev viewer switches are identity changes, not auth delegation. Keep
+  // external self-custody because it is wallet-owned, but drop Twitter custody
+  // so a custodial session for one seeded user cannot appear under another.
+  if (current.kind === "linked" || current.kind === "awaiting-oauth") {
+    return { kind: "anonymous" };
+  }
+  return current;
+}
+
 export function subscribe(listener: Listener): () => void {
   listeners.add(listener);
   return () => {
