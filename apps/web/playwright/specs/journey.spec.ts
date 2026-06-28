@@ -57,8 +57,15 @@ test.describe("pairmarket prototype journey", () => {
       accountPanel.getByText("linked", { exact: true }),
     ).toBeVisible();
     await expect(
-      accountPanel.getByText("twitter:ada", { exact: true }).first(),
-    ).toBeVisible();
+      accountPanel.locator(".kv", {
+        has: page.getByText("Twitter sub", { exact: true }),
+      }),
+    ).toContainText("twitter:ada");
+    await expect(
+      accountPanel.locator(".kv", {
+        has: page.getByText("Custodial user", { exact: true }),
+      }),
+    ).toContainText("twitter:ada");
     await expect(
       accountPanel.getByText("custodial", { exact: true }),
     ).toBeVisible();
