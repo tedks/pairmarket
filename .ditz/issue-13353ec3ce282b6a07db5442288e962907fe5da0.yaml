@@ -1,0 +1,19 @@
+id: 13353ec3ce282b6a07db5442288e962907fe5da0
+title: Preserve list filter when returning from market detail
+desc: 'Council nit from PR #15. Opening a row from the Needs you filtered list then
+  clicking Back/Markets returns to the all-markets list and marks Markets active.
+  Carry the originating market-list filter through the market route, or explicitly
+  document/test that details always return to all markets.'
+type: task
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-28T01:05:33-00:00
+references: []
+log_events:
+- time: 2026-06-28T01:05:33-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
