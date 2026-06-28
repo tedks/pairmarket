@@ -74,6 +74,34 @@ test.describe("pairmarket prototype journey", () => {
     await expect(accountPanel.getByText(/twitter:twitter/i)).toHaveCount(0);
   });
 
+  test("switching dev viewers clears Twitter custody instead of carrying it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByTestId("sign-in-twitter").click();
+    await expect(page.getByTestId("custody-linked")).toContainText("@ada");
+
+    await switchViewer(page, "ben-okri");
+
+    await expect(page.getByTestId("custody-linked")).toHaveCount(0);
+    await expect(page.getByTestId("connect-wallet")).toBeVisible();
+    await expect(page.getByTestId("sign-in-twitter")).toBeVisible();
+
+    await page.getByRole("button", { name: "Account" }).click();
+    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
+    const accountPanel = page.locator(".account-panel");
+    await expect(
+      accountPanel.locator(".kv", {
+        has: page.getByText("Display name", { exact: true }),
+      }),
+    ).toContainText("Ben Okri");
+    await expect(
+      accountPanel.locator(".kv", {
+        has: page.getByText("State", { exact: true }),
+      }),
+    ).toContainText("anonymous");
+  });
+
   test("self-custody wallet sign-in is the primary account path", async ({
     page,
   }) => {

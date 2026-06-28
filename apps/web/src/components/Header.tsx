@@ -9,11 +9,10 @@ import {
 } from "@mysten/dapp-kit-react";
 import type { CustodyState } from "@pairmarket/core";
 import {
-  setState as setAppState,
+  setPrototypeViewer,
   signInWithTwitter,
   signOut,
 } from "../mock/store.ts";
-import { setViewer } from "../mock/intents.ts";
 import { WALLET_STORAGE_KEY } from "../dapp-kit.ts";
 import { formatAddress } from "../format.ts";
 import type { UserProfile } from "../types.ts";
@@ -174,7 +173,7 @@ function ViewerSwitcher({
         onChange={(e) => {
           const nextId = e.target.value;
           const next = users.find((u) => u.id === nextId);
-          if (next) setAppState((s) => setViewer(s, next.id));
+          if (next) setPrototypeViewer(next.id);
         }}
         data-testid="viewer-switcher"
       >
