@@ -1,0 +1,19 @@
+id: pm-web-twitter-custody-session
+title: Prototype public Twitter custody session scaffold
+desc: 'Merged PR #12: browser Twitter fallback sign-in now uses a public custody session
+  shape, no KeyRef/session token rendering in Account, core TwitterSub to UserId mapping,
+  runtime tests, and Playwright journey checks. This is the prototype slice; the broader
+  production custodial wallet design remains tracked by pm-custodial-wallet-interface.'
+type: feature
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-06-28T00:07:56-00:00
+references: []
+log_events:
+- time: 2026-06-28T00:07:56-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
