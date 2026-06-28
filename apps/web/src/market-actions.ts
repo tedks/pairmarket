@@ -23,8 +23,14 @@ export function viewerMarketAction(
     return "Accept invite";
   }
 
-  const hasPosition = market.positions.some((p) => p.owner === state.viewer);
-  if (invite?.accepted && market.phase === "trading" && !hasPosition) {
+  const alreadyStaked = market.positions
+    .filter((p) => p.owner === state.viewer)
+    .reduce<bigint>((sum, p) => sum + p.amountMist, 0n);
+  const remainingStakeMist =
+    invite?.accepted === true && invite.maxStakeMist > alreadyStaked
+      ? invite.maxStakeMist - alreadyStaked
+      : 0n;
+  if (market.phase === "trading" && remainingStakeMist > 0n) {
     return "Place wager";
   }
 

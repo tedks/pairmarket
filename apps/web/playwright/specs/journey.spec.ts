@@ -79,15 +79,16 @@ test.describe("pairmarket prototype journey", () => {
     await switchViewer(page, "ben-okri");
     await page.getByRole("button", { name: /Needs you/ }).click();
     await expect(
-      page.getByText("1 actionable · 4 visible total"),
+      page.getByText("2 actionable · 4 visible total"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Will Cleo and Dru last 3 dates?"),
     ).toBeVisible();
     await expect(
       page.getByText("Will Eli and Fae go on a second date if introduced?"),
     ).toBeVisible();
+    await expect(page.getByText("Place wager")).toBeVisible();
     await expect(page.getByText("Accept invite")).toBeVisible();
-    await expect(page.getByText("Will Cleo and Dru last 3 dates?")).toHaveCount(
-      0,
-    );
 
     await page.getByRole("button", { name: /^Markets/ }).click();
     await expect(
