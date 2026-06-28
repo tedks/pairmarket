@@ -72,6 +72,8 @@ export async function signInWithTwitter(): Promise<void> {
   setCustody({ kind: "awaiting-oauth", nonce: challenge.nonce });
   await new Promise((r) => setTimeout(r, 150));
   const session = await twitterCustody.completeSignIn(challenge);
+  // Re-read module state after the redirect delay; sign-out or a newer
+  // sign-in must win over this stale OAuth completion.
   if (custody.kind !== "awaiting-oauth" || custody.nonce !== challenge.nonce) {
     return;
   }
