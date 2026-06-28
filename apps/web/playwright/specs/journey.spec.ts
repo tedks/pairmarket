@@ -104,6 +104,24 @@ test.describe("pairmarket prototype journey", () => {
     expect(storedWallet).toBeNull();
   });
 
+  test("wager form defaults to remaining invite cap", async ({ page }) => {
+    await page.goto("/");
+    await switchViewer(page, "ben-okri");
+    await openMarket(page, MARKETS.trading);
+
+    await expect(page.getByTestId("wager-amount")).toHaveValue("0.5");
+    await expect(page.locator(".wager-meta")).toContainText("cap 0.5 SUI");
+
+    await page.getByTestId("wager-no").check();
+    await page.getByTestId("wager-amount").fill("0.4");
+    await page.getByTestId("wager-submit").click();
+
+    await expect(page.getByTestId("wager-no")).toBeChecked();
+    await expect(page.getByTestId("wager-amount")).toHaveValue("0.1");
+    await expect(page.locator(".wager-meta")).toContainText("cap 0.1 SUI");
+    await expect(page.getByTestId("wager-submit")).toBeEnabled();
+  });
+
   test("end-to-end: consent → wager → attest → settle → claim", async ({
     page,
   }) => {

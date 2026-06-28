@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MarketId, WagerOutcome } from "@pairmarket/core";
 import { parseMistAmount } from "@pairmarket/core";
 import type { Route } from "../App.tsx";
@@ -22,6 +22,9 @@ import {
   viewerIsMember,
 } from "../mock/intents.ts";
 import { setState } from "../mock/store.ts";
+
+// Suggested wager amount; clamped down to the viewer's remaining invite cap.
+const DEFAULT_WAGER_MIST = 500_000_000n;
 
 type Props = {
   readonly state: AppState;
@@ -416,7 +419,14 @@ function WagerForm({
   ) => void;
 }): JSX.Element {
   const [outcome, setOutcome] = useState<WagerOutcome>("yes");
-  const [stake, setStake] = useState("0.5");
+  const defaultStake = useMemo(
+    () => defaultStakeInput(maxStakeMist),
+    [maxStakeMist],
+  );
+  const [stake, setStake] = useState(defaultStake);
+  useEffect(() => {
+    setStake(defaultStake);
+  }, [defaultStake]);
   const max = useMemo(
     () => Number(maxStakeMist) / 1_000_000_000,
     [maxStakeMist],
@@ -473,7 +483,7 @@ function WagerForm({
         <span>Stake (SUI)</span>
         <input
           type="number"
-          step="0.01"
+          step="0.000000001"
           min="0"
           max={max}
           value={stake}
@@ -492,6 +502,19 @@ function WagerForm({
       </button>
     </form>
   );
+}
+
+function defaultStakeInput(maxStakeMist: bigint): string {
+  const mist =
+    maxStakeMist < DEFAULT_WAGER_MIST ? maxStakeMist : DEFAULT_WAGER_MIST;
+  return formatMistInput(mist);
+}
+
+function formatMistInput(mist: bigint): string {
+  const whole = mist / 1_000_000_000n;
+  const fractional = mist % 1_000_000_000n;
+  if (fractional === 0n) return whole.toString();
+  return `${whole}.${fractional.toString().padStart(9, "0").replace(/0+$/, "")}`;
 }
 
 function AttestationCard({
