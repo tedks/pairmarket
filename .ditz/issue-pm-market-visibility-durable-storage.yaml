@@ -1,0 +1,21 @@
+id: pm-market-visibility-durable-storage
+title: Store market visibility durably under Sui field limits
+desc: The social graph prototype records visibility in the MarketCreated event and
+  the app indexes that event. Attempting to add visibility as a 33rd Market<T> field
+  fails localnet publish with VMVerificationOrDeserializationError because the current
+  Market struct is at the field limit. Restructure Market storage (for example pack
+  lifecycle/consent flags or introduce a shared metadata child object) so visibility
+  is durable on-chain without exceeding Sui verifier limits.
+type: task
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-06T22:47:30-00:00
+references: []
+log_events:
+- time: 2026-07-06T22:47:30-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
