@@ -5,7 +5,7 @@ import {
   useCurrentWallet,
   useWalletConnection,
 } from "@mysten/dapp-kit-react";
-import { getCustody, setCustody } from "../mock/store.ts";
+import { getCustody, setCustody } from "../state/store.ts";
 import { nextSelfCustodyState } from "../self-custody.ts";
 
 export function SelfCustodyBridge(): JSX.Element | null {

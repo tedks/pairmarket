@@ -1,4 +1,6 @@
-import { createPrototypeTwitterCustodyClient } from "../src/auth/twitter-custody.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 
 function assert(condition, message) {
   if (!condition) {
@@ -6,29 +8,18 @@ function assert(condition, message) {
   }
 }
 
-const client = createPrototypeTwitterCustodyClient();
-const profile = {
-  id: "ada-lovelace",
-  handle: "ada",
-  displayName: "Ada Lovelace",
-  address: "0x0000000000000000000000000000000000000000000000000000000000000ada",
-  avatar: "AL",
-};
-
-const firstChallenge = client.beginSignIn(profile);
-const secondChallenge = client.beginSignIn(profile);
+const here = dirname(fileURLToPath(import.meta.url));
+const header = readFileSync(resolve(here, "../src/components/Header.tsx"), "utf8");
 
 assert(
-  firstChallenge.nonce !== secondChallenge.nonce,
-  "Twitter OAuth challenges use fresh nonces",
+  header.includes("Twitter custody coming later"),
+  "Twitter custody is visibly disabled",
 );
-
-const first = await client.completeSignIn(firstChallenge);
-const second = await client.completeSignIn(secondChallenge);
-
-assert(first.sub === "twitter:ada", "session preserves Twitter subject");
-assert(first.userId === "twitter:ada", "session maps Twitter subject to user");
-assert(first.address === profile.address, "session exposes public Sui address");
-assert(first.owner.kind === "custodial", "session exposes public owner kind");
-assert(!("keyRef" in first.owner), "session must not expose custodial KeyRef");
-assert(first.sessionId !== second.sessionId, "sessions are not reused");
+assert(
+  !header.includes("signInWithTwitter"),
+  "Twitter sign-in is not wired into the header",
+);
+assert(
+  !existsSync(resolve(here, "../src/auth/twitter-custody.ts")),
+  "prototype Twitter custody implementation is absent",
+);

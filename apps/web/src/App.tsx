@@ -8,7 +8,8 @@ import { MarketDetail } from "./components/MarketDetail.tsx";
 import { CreateMarket } from "./components/CreateMarket.tsx";
 import { AccountPanel } from "./components/AccountPanel.tsx";
 import { SelfCustodyBridge } from "./components/SelfCustodyBridge.tsx";
-import { useAppState, useCustody } from "./mock/store.ts";
+import { useAppState, useCustody } from "./state/store.ts";
+import { useChainAppState } from "./sui/state.ts";
 
 export type Route =
   | { readonly kind: "markets"; readonly filter: "all" | "needs-you" }
@@ -17,7 +18,9 @@ export type Route =
   | { readonly kind: "account" };
 
 export function App(): JSX.Element {
-  const state = useAppState();
+  const localState = useAppState();
+  const chain = useChainAppState(localState);
+  const state = chain.state;
   const custody = useCustody();
   const [route, setRoute] = useState<Route>({ kind: "markets", filter: "all" });
 
@@ -30,14 +33,19 @@ export function App(): JSX.Element {
   return (
     <div className="app-shell">
       <SelfCustodyBridge />
-      <Header
-        viewer={viewerProfile}
-        users={[...state.users.values()]}
-        custody={custody}
-      />
+      <Header viewer={viewerProfile} custody={custody} />
       <div className="app-body">
         <Sidebar route={route} setRoute={setRoute} state={state} />
         <main className="app-main">
+          {chain.error ? (
+            <div className="chain-banner" role="status">
+              {chain.error}
+            </div>
+          ) : chain.loading ? (
+            <div className="chain-banner" role="status">
+              Syncing localnet objects...
+            </div>
+          ) : null}
           {route.kind === "markets" ? (
             <MarketList
               state={state}
@@ -49,9 +57,10 @@ export function App(): JSX.Element {
               state={state}
               marketId={route.id}
               setRoute={setRoute}
+              refresh={chain.refresh}
             />
           ) : route.kind === "new" ? (
-            <CreateMarket state={state} setRoute={setRoute} />
+            <CreateMarket setRoute={setRoute} refresh={chain.refresh} />
           ) : (
             <AccountPanel state={state} custody={custody} />
           )}

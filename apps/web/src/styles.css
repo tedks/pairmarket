@@ -102,6 +102,12 @@ button {
 .header-spacer {
   flex: 1;
 }
+.viewer-address {
+  color: var(--fg-dim);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
 .auth-actions {
   display: flex;
   align-items: center;
@@ -122,25 +128,6 @@ button {
   color: var(--bad);
   font-size: 0.78rem;
 }
-.viewer-switcher {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--fg-dim);
-}
-.viewer-switcher-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.viewer-switcher select {
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 4px 8px;
-}
-
 .custody-pill {
   border: 1px solid var(--border-strong);
   background: var(--bg-elev-2);
@@ -237,6 +224,16 @@ button {
   min-width: 0;
 }
 
+.chain-banner {
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  color: var(--fg-dim);
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .app-header {
     align-items: flex-start;
@@ -253,17 +250,12 @@ button {
   .header-spacer {
     display: none;
   }
-  .auth-actions {
-    justify-content: flex-start;
-  }
-  .viewer-switcher {
+  .viewer-address {
     order: 3;
     width: 100%;
-    justify-content: space-between;
   }
-  .viewer-switcher select {
-    min-width: 0;
-    max-width: 210px;
+  .auth-actions {
+    justify-content: flex-start;
   }
   .custody-pill {
     max-width: calc(100vw - 24px);

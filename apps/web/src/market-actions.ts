@@ -2,7 +2,6 @@ import type { AppState, Market } from "./types.ts";
 
 export type ViewerMarketAction =
   | "Consent required"
-  | "Accept invite"
   | "Place wager"
   | "Attest outcome"
   | "Claim payout";
@@ -15,19 +14,11 @@ export function viewerMarketAction(
   if (subject?.consent.status === "pending") return "Consent required";
 
   const invite = market.invites.find((i) => i.invitee === state.viewer);
-  if (
-    invite &&
-    !invite.accepted &&
-    (market.phase === "trading" || market.phase === "proposed")
-  ) {
-    return "Accept invite";
-  }
-
   const alreadyStaked = market.positions
     .filter((p) => p.owner === state.viewer)
     .reduce<bigint>((sum, p) => sum + p.amountMist, 0n);
   const remainingStakeMist =
-    invite?.accepted === true && invite.maxStakeMist > alreadyStaked
+    invite !== undefined && invite.maxStakeMist > alreadyStaked
       ? invite.maxStakeMist - alreadyStaked
       : 0n;
   if (market.phase === "trading" && remainingStakeMist > 0n) {

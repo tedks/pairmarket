@@ -87,7 +87,6 @@ module pairmarket::market {
     const EVerdictAlreadySet: u64 = 30;
     const EChallengerOnWinningSide: u64 = 31;
     const EFeeBpsAboveOneHundredPercent: u64 = 32;
-    const EChallengeAlreadyOpen: u64 = 33;
 
     /// 100% in basis points. The fee cap can never exceed this regardless
     /// of `Config.max_fee_bps`.
@@ -117,12 +116,9 @@ module pairmarket::market {
         terms_hash: vector<u8>,
         metadata_ref: vector<u8>,
         subject_ref: vector<u8>,
-        evidence_ref: Option<vector<u8>>,
         seal_policy_id: vector<u8>,
-        policy_epoch: u32,
         // Lifecycle.
         state: u8,
-        created_ms: u64,
         close_ms: u64,
         earliest_attest_ms: u64,
         resolution_deadline_ms: u64,
@@ -141,7 +137,6 @@ module pairmarket::market {
         matched_outcome: u8,
         // Dispute and committee.
         resolver_committee: vector<address>,
-        challenger: Option<address>,
         committee_verdict: u8,
         // Fees and balances.
         fee_bps: u16,
@@ -362,11 +357,8 @@ module pairmarket::market {
             terms_hash,
             metadata_ref,
             subject_ref,
-            evidence_ref: option::none(),
             seal_policy_id,
-            policy_epoch: 0,
             state: STATE_PROPOSED,
-            created_ms: now,
             close_ms,
             earliest_attest_ms,
             resolution_deadline_ms,
@@ -382,7 +374,6 @@ module pairmarket::market {
             attestation_round: 0,
             matched_outcome: OUTCOME_UNSET,
             resolver_committee,
-            challenger: option::none(),
             committee_verdict: OUTCOME_UNSET,
             fee_bps,
             yes_pool: balance::zero<T>(),
@@ -637,8 +628,8 @@ module pairmarket::market {
     }
 
     /// A staked participant may bond and open a challenge during the
-    /// challenge window. MVP records the challenger only; the bond and
-    /// committee mechanics are left to a follow-up.
+    /// challenge window. MVP emits the challenger; the bond and committee
+    /// mechanics are left to a follow-up.
     entry fun open_challenge<T>(
         market: &mut Market<T>,
         position: &Position<T>,
@@ -646,10 +637,6 @@ module pairmarket::market {
         ctx: &mut TxContext,
     ) {
         assert!(market.state == STATE_CHALLENGE_WINDOW, EWrongState);
-        // STATE_CHALLENGE_WINDOW already implies no prior challenge succeeded
-        // (a successful open transitions to STATE_DISPUTED), but be explicit.
-        assert!(option::is_none(&market.challenger), EChallengeAlreadyOpen);
-
         let market_id = object::uid_to_inner(&market.id);
         assert!(position.market_id == market_id, EWrongMarket);
         let sender = tx_context::sender(ctx);
@@ -663,7 +650,6 @@ module pairmarket::market {
         let opened_ms = *option::borrow(&market.challenge_opened_ms);
         assert!(now <= opened_ms + market.challenge_window_ms, EChallengeWindowClosed);
 
-        market.challenger = option::some(sender);
         market.state = STATE_DISPUTED;
         event::emit(ChallengeOpened { market_id, challenger: sender });
     }
