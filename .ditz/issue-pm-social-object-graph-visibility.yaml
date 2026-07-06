@@ -9,8 +9,8 @@ type: feature
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-07-06T22:13:12-00:00
 references: []
 log_events:
@@ -22,3 +22,12 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-07-06T22:47:37-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Implemented on branch agent/social-graph-visibility: profile objects,
+    mutual friend requests/friendships, handle-based social UI, direct-friend market
+    subject resolution, friend/friend-of-friend/public visibility indexing, subject
+    exclusion from UI discovery, object-ID market actions, Move tests, runtime tests,
+    Playwright checks, and generated-wallet localnet journey. Follow-up pm-market-visibility-durable-storage
+    tracks durable object storage for visibility under the Sui struct field limit.'
