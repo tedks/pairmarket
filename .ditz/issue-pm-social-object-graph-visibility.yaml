@@ -1,0 +1,20 @@
+id: pm-social-object-graph-visibility
+title: Add object-based social graph and market visibility
+desc: Add localnet social graph support where user-facing identity is a friend/profile
+  object rather than a wallet address. Friendship is mutual, handles are localnet
+  test handles with a future SuiNS path, markets reference friend object IDs, and
+  market visibility can be creator friends, creator friends plus friends-of-friends,
+  or public while subjects are excluded from UI discovery.
+type: feature
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-06T22:13:12-00:00
+references: []
+log_events:
+- time: 2026-07-06T22:13:12-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
