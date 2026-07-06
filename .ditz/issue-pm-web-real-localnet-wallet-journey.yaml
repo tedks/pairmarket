@@ -1,0 +1,19 @@
+id: pm-web-real-localnet-wallet-journey
+title: Replace mock prototype with real localnet wallet journey
+desc: Remove seeded mock markets and dev viewer switching. Use real Sui wallet connection
+  pointed at localnet, leave Twitter custody disabled as coming later, and cover the
+  full on-chain market journey with generated-key integration tests. Localnet fixtures
+  may seed real chain objects; no test keypairs are checked in.
+type: feature
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-06T18:24:17-00:00
+references: []
+log_events:
+- time: 2026-07-06T18:24:17-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
