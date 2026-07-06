@@ -28,6 +28,8 @@ function anonymousState(): AppState {
         },
       ],
     ]),
+    friendships: [],
+    friendRequests: [],
     markets: new Map(),
     intents: [],
     nowMs: parseUnixMs(Date.now()),

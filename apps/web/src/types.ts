@@ -4,6 +4,7 @@ import type {
   MistAmount,
   PositionId,
   SuiAddress,
+  SuiObjectId,
   TxIntent,
   TxKind,
   UnixMs,
@@ -15,6 +16,8 @@ export type OperationalizationKind =
   | { readonly kind: "lasts-n-dates"; readonly n: number }
   | { readonly kind: "together-by-date"; readonly deadlineMs: UnixMs }
   | { readonly kind: "meet-by-date"; readonly deadlineMs: UnixMs };
+
+export type VisibilityScope = "friends" | "friends-of-friends" | "public";
 
 export type MarketPhase =
   | "draft"
@@ -75,6 +78,7 @@ export type Market = {
   readonly id: MarketId;
   readonly creator: UserId;
   readonly subjects: readonly [Subject, Subject];
+  readonly visibility: VisibilityScope;
   readonly operationalization: OperationalizationKind;
   readonly closeMs: UnixMs;
   readonly resolutionDeadlineMs: UnixMs;
@@ -97,7 +101,19 @@ export type UserProfile = {
   readonly id: UserId;
   readonly handle: string;
   readonly displayName: string;
+  readonly profileObjectId?: SuiObjectId;
   readonly address: SuiAddress;
+};
+
+export type Friendship = {
+  readonly a: UserId;
+  readonly b: UserId;
+};
+
+export type FriendRequest = {
+  readonly id: SuiObjectId;
+  readonly requester: UserId;
+  readonly target: UserId;
 };
 
 export type IntentRecord = {
@@ -110,6 +126,8 @@ export type IntentRecord = {
 export type AppState = {
   readonly viewer: UserId;
   readonly users: ReadonlyMap<UserId, UserProfile>;
+  readonly friendships: readonly Friendship[];
+  readonly friendRequests: readonly FriendRequest[];
   readonly markets: ReadonlyMap<MarketId, Market>;
   readonly intents: readonly IntentRecord[];
   readonly nowMs: UnixMs;

@@ -2,9 +2,9 @@ import type { JSX } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { Transaction } from "@mysten/sui/transactions";
 import type { MarketId, WagerOutcome } from "@pairmarket/core";
-import { parseMistAmount, tryParseSuiAddress } from "@pairmarket/core";
+import { parseMistAmount, parseSuiObjectId } from "@pairmarket/core";
 import type { Route } from "../App.tsx";
-import type { AppState, Market, Subject } from "../types.ts";
+import type { AppState, Market, Subject, UserProfile } from "../types.ts";
 import {
   formatMarketId,
   formatSui,
@@ -12,11 +12,7 @@ import {
   phaseLabel,
   formatDuration,
 } from "../format.ts";
-import {
-  payoutPool,
-  sharesByOutcome,
-  viewerIsMember,
-} from "../market-selectors.ts";
+import { payoutPool, sharesByOutcome } from "../market-selectors.ts";
 import {
   pairmarketMoveConfig,
   type PairmarketMoveConfig,
@@ -75,35 +71,6 @@ export function MarketDetail({
       </section>
     );
   }
-  const isMember = viewerIsMember(state, market);
-
-  if (!isMember) {
-    return (
-      <section className="market-detail" data-testid="market-detail">
-        <header className="market-detail-head">
-          <button
-            type="button"
-            className="back-link"
-            onClick={() => setRoute({ kind: "markets", filter: "all" })}
-          >
-            ← Markets
-          </button>
-        </header>
-        <h1 className="market-detail-title market-detail-title-redacted">
-          [encrypted · not a policy member]
-        </h1>
-        <div className="market-detail-grid">
-          <Card title="Private market">
-            <p className="card-empty">
-              This market is private by invitation. Details remain encrypted for
-              viewers outside the policy.
-            </p>
-          </Card>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="market-detail" data-testid="market-detail">
       <header className="market-detail-head">
@@ -266,6 +233,7 @@ function SubjectRow({
 }): JSX.Element {
   const profile = state.users.get(subject.user);
   const isMe = subject.user === state.viewer;
+  const viewerProfileId = viewerProfileObjectId(state);
   return (
     <div className="subject-row" data-testid={`subject-${subject.role}`}>
       <div className="subject-id">
@@ -285,10 +253,12 @@ function SubjectRow({
               type="button"
               className="btn btn-primary"
               data-testid="consent-accept"
-              disabled={config === undefined}
+              disabled={config === undefined || viewerProfileId === undefined}
               onClick={() => {
-                if (config !== undefined) {
-                  runMarketTx(buildConsentTransaction(config, market.id));
+                if (config !== undefined && viewerProfileId !== undefined) {
+                  runMarketTx(
+                    buildConsentTransaction(config, market.id, viewerProfileId),
+                  );
                 }
               }}
             >
@@ -356,6 +326,7 @@ function InvitesCard({
       {viewerIsCreator && market.phase === "trading" ? (
         <MintInviteForm
           market={market}
+          state={state}
           config={config}
           runMarketTx={runMarketTx}
         />
@@ -366,16 +337,19 @@ function InvitesCard({
 
 function MintInviteForm({
   market,
+  state,
   config,
   runMarketTx,
 }: {
   readonly market: Market;
+  readonly state: AppState;
   readonly config: PairmarketMoveConfig | undefined;
   readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
   const [grantee, setGrantee] = useState("");
   const [capSui, setCapSui] = useState("1");
-  const parsedGrantee = tryParseSuiAddress(grantee.trim());
+  const resolvedGrantee = resolveProfile(state, grantee);
+  const creatorProfileId = state.users.get(market.creator)?.profileObjectId;
   const capMist = useMemo(() => {
     const n = Number(capSui);
     if (!Number.isFinite(n) || n <= 0) return undefined;
@@ -383,7 +357,10 @@ function MintInviteForm({
   }, [capSui]);
 
   const canMint =
-    config !== undefined && parsedGrantee.ok && capMist !== undefined;
+    config !== undefined &&
+    creatorProfileId !== undefined &&
+    resolvedGrantee !== undefined &&
+    capMist !== undefined;
 
   return (
     <form
@@ -395,7 +372,8 @@ function MintInviteForm({
           buildMintInviteTransaction(
             config,
             market.id,
-            parsedGrantee.value,
+            creatorProfileId,
+            resolvedGrantee.profileObjectId,
             capMist,
             market.closeMs,
           ),
@@ -404,13 +382,13 @@ function MintInviteForm({
       }}
     >
       <label className="stake-input">
-        <span>Invite address</span>
+        <span>Invite friend</span>
         <input
           type="text"
           value={grantee}
           onChange={(e) => setGrantee(e.target.value)}
           data-testid="mint-invite-address"
-          placeholder="0x..."
+          placeholder="@friend"
         />
       </label>
       <label className="stake-input">
@@ -447,6 +425,7 @@ function PositionsCard({
   readonly config: PairmarketMoveConfig | undefined;
   readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
+  const viewerProfileId = viewerProfileObjectId(state);
   return (
     <Card title="Positions">
       {market.positions.length === 0 ? (
@@ -491,11 +470,21 @@ function PositionsCard({
                     type="button"
                     className="btn btn-primary btn-sm"
                     data-testid="claim-payout"
-                    disabled={config === undefined}
+                    disabled={
+                      config === undefined || viewerProfileId === undefined
+                    }
                     onClick={() => {
-                      if (config !== undefined) {
+                      if (
+                        config !== undefined &&
+                        viewerProfileId !== undefined
+                      ) {
                         runMarketTx(
-                          buildClaimTransaction(config, market.id, p.id),
+                          buildClaimTransaction(
+                            config,
+                            market.id,
+                            p.id,
+                            viewerProfileId,
+                          ),
                         );
                       }
                     }}
@@ -512,11 +501,21 @@ function PositionsCard({
                     type="button"
                     className="btn btn-primary btn-sm"
                     data-testid="refund-position"
-                    disabled={config === undefined}
+                    disabled={
+                      config === undefined || viewerProfileId === undefined
+                    }
                     onClick={() => {
-                      if (config !== undefined) {
+                      if (
+                        config !== undefined &&
+                        viewerProfileId !== undefined
+                      ) {
                         runMarketTx(
-                          buildRefundTransaction(config, market.id, p.id),
+                          buildRefundTransaction(
+                            config,
+                            market.id,
+                            p.id,
+                            viewerProfileId,
+                          ),
                         );
                       }
                     }}
@@ -547,6 +546,7 @@ function ActionsCard({
   const accepted = market.invites.find(
     (i) => i.invitee === state.viewer && i.accepted,
   );
+  const viewerProfileId = viewerProfileObjectId(state);
   const alreadyStaked = market.positions
     .filter((p) => p.owner === state.viewer)
     .reduce<bigint>((sum, p) => sum + p.amountMist, 0n);
@@ -566,14 +566,15 @@ function ActionsCard({
       {canWager ? (
         <WagerForm
           maxStakeMist={remainingStakeMist}
-          disabled={config === undefined}
+          disabled={config === undefined || viewerProfileId === undefined}
           onSubmit={(outcome, amountMist) =>
-            config !== undefined
+            config !== undefined && viewerProfileId !== undefined
               ? runMarketTx(
                   buildPlaceTransaction(
                     config,
                     market.id,
                     accepted!.id,
+                    viewerProfileId,
                     outcome,
                     amountMist,
                   ),
@@ -720,6 +721,47 @@ function formatMistInput(mist: bigint): string {
   return `${whole}.${fractional.toString().padStart(9, "0").replace(/0+$/, "")}`;
 }
 
+function viewerProfileObjectId(
+  state: AppState,
+): UserProfile["profileObjectId"] {
+  return state.users.get(state.viewer)?.profileObjectId;
+}
+
+function resolveProfile(
+  state: AppState,
+  input: string,
+):
+  | (UserProfile & {
+      readonly profileObjectId: NonNullable<UserProfile["profileObjectId"]>;
+    })
+  | undefined {
+  const cleaned = input.trim().replace(/^@/, "").toLowerCase();
+  if (cleaned === "") return undefined;
+  const byHandle = [...state.users.values()].find(
+    (profile) =>
+      profile.profileObjectId !== undefined &&
+      profile.handle.toLowerCase() === cleaned,
+  );
+  if (byHandle?.profileObjectId !== undefined) {
+    return byHandle as UserProfile & {
+      readonly profileObjectId: NonNullable<UserProfile["profileObjectId"]>;
+    };
+  }
+  try {
+    const objectId = parseSuiObjectId(input.trim());
+    const byId = [...state.users.values()].find(
+      (profile) => profile.profileObjectId === objectId,
+    );
+    return byId?.profileObjectId === undefined
+      ? undefined
+      : (byId as UserProfile & {
+          readonly profileObjectId: NonNullable<UserProfile["profileObjectId"]>;
+        });
+  } catch {
+    return undefined;
+  }
+}
+
 function AttestationCard({
   market,
   state,
@@ -735,6 +777,7 @@ function AttestationCard({
   const viewerAttested = market.attestations.some(
     (a) => a.attestor === state.viewer,
   );
+  const viewerProfileId = viewerProfileObjectId(state);
   return (
     <Card title="Attestations">
       {market.attestations.length === 0 ? (
@@ -764,11 +807,16 @@ function AttestationCard({
             type="button"
             className="btn btn-primary"
             data-testid="attest-yes"
-            disabled={config === undefined}
+            disabled={config === undefined || viewerProfileId === undefined}
             onClick={() => {
-              if (config !== undefined) {
+              if (config !== undefined && viewerProfileId !== undefined) {
                 runMarketTx(
-                  buildSubmitAttestationTransaction(config, market.id, "yes"),
+                  buildSubmitAttestationTransaction(
+                    config,
+                    market.id,
+                    viewerProfileId,
+                    "yes",
+                  ),
                 );
               }
             }}
@@ -779,11 +827,16 @@ function AttestationCard({
             type="button"
             className="btn"
             data-testid="attest-no"
-            disabled={config === undefined}
+            disabled={config === undefined || viewerProfileId === undefined}
             onClick={() => {
-              if (config !== undefined) {
+              if (config !== undefined && viewerProfileId !== undefined) {
                 runMarketTx(
-                  buildSubmitAttestationTransaction(config, market.id, "no"),
+                  buildSubmitAttestationTransaction(
+                    config,
+                    market.id,
+                    viewerProfileId,
+                    "no",
+                  ),
                 );
               }
             }}
@@ -794,13 +847,14 @@ function AttestationCard({
             type="button"
             className="btn btn-warn"
             data-testid="attest-invalid"
-            disabled={config === undefined}
+            disabled={config === undefined || viewerProfileId === undefined}
             onClick={() => {
-              if (config !== undefined) {
+              if (config !== undefined && viewerProfileId !== undefined) {
                 runMarketTx(
                   buildSubmitAttestationTransaction(
                     config,
                     market.id,
+                    viewerProfileId,
                     "invalid",
                   ),
                 );

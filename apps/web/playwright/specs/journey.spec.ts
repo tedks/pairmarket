@@ -22,7 +22,7 @@ test.describe("pairmarket localnet shell", () => {
     await expect(twitter).toContainText("Twitter custody coming later");
   });
 
-  test("new market form collects Sui addresses and requires wallet custody", async ({
+  test("new market form collects friend handles and requires a profile object", async ({
     page,
   }) => {
     await page.goto("/");
@@ -33,16 +33,33 @@ test.describe("pairmarket localnet shell", () => {
     ).toBeVisible();
     await expect(page.getByTestId("create-subject-a")).toHaveAttribute(
       "placeholder",
-      "0x...",
+      "@heyellieday",
     );
     await expect(page.getByTestId("create-subject-b")).toHaveAttribute(
       "placeholder",
-      "0x...",
+      "@tedks",
     );
+    await expect(page.getByTestId("create-visibility")).toHaveValue("friends");
     await expect(
-      page.getByText("Connect a Sui wallet to create a market."),
+      page.getByText("Create a profile object before creating a market."),
     ).toBeVisible();
     await expect(page.getByTestId("create-submit")).toBeDisabled();
+  });
+
+  test("social graph page starts with profile creation", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Social" }).click();
+
+    await expect(
+      page.getByRole("heading", { name: "Social graph" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("profile-handle")).toHaveAttribute(
+      "placeholder",
+      "@tedks",
+    );
+    await expect(
+      page.getByRole("button", { name: "Create profile" }),
+    ).toBeVisible();
   });
 
   test("account page starts anonymous with no linked custody", async ({

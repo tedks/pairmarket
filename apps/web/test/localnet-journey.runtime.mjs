@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { requestSuiFromFaucetV2 } from "@mysten/sui/faucet";
 import { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
-import { parseSuiAddress } from "@pairmarket/core";
 import {
   buildClaimTransaction,
   buildConsentTransaction,
@@ -16,6 +15,12 @@ import {
   buildSubmitAttestationTransaction,
   findCreatedMarketId,
 } from "../src/sui/market.ts";
+import {
+  buildAcceptFriendshipTransaction,
+  buildCreateProfileTransaction,
+  buildRequestFriendshipTransaction,
+  findCreatedProfileId,
+} from "../src/sui/social.ts";
 import { SUI_CLOCK_OBJECT_ID, SUI_COIN_TYPE } from "../src/sui/config.ts";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -36,6 +41,14 @@ const invitee = new Ed25519Keypair();
 
 await Promise.all([creator, subjectA, subjectB, invitee].map(fund));
 
+const creatorProfile = await createProfile("creator", creator);
+const subjectAProfile = await createProfile("heyellieday", subjectA);
+const subjectBProfile = await createProfile("tedks", subjectB);
+const inviteeProfile = await createProfile("paula", invitee);
+await befriend(creator, creatorProfile, subjectA, subjectAProfile);
+await befriend(creator, creatorProfile, subjectB, subjectBProfile);
+await befriend(creator, creatorProfile, invitee, inviteeProfile);
+
 const now = Date.now();
 const closeMs = now + 15_000;
 const earliestAttestMs = closeMs + 1_000;
@@ -46,33 +59,41 @@ const disputeDeadlineMs = resolutionDeadlineMs + 2_000;
 const created = await execute(
   await buildCreateMarketTransaction({
     config: moveConfig,
-    creator: parseSuiAddress(addressOf(creator)),
+    creatorProfile,
     operationalization: { kind: "lasts-n-dates", n: 3 },
+    visibility: "friends",
     title: "Localnet generated-wallet journey",
     prompt: "Does this real on-chain journey settle?",
-    subjectA: parseSuiAddress(addressOf(subjectA)),
-    subjectB: parseSuiAddress(addressOf(subjectB)),
+    subjectAProfile,
+    subjectBProfile,
     closeMs,
     earliestAttestMs,
     resolutionDeadlineMs,
     challengeWindowMs,
     disputeDeadlineMs,
     feeBps: 0,
-    resolverCommittee: [parseSuiAddress(addressOf(creator))],
+    resolverCommittee: [creatorProfile],
   }),
   creator,
 );
 const marketId = findCreatedMarketId(created);
 assert.ok(marketId, "create_market emitted a market id");
 
-await execute(buildConsentTransaction(moveConfig, marketId), subjectA);
-await execute(buildConsentTransaction(moveConfig, marketId), subjectB);
+await execute(
+  buildConsentTransaction(moveConfig, marketId, subjectAProfile),
+  subjectA,
+);
+await execute(
+  buildConsentTransaction(moveConfig, marketId, subjectBProfile),
+  subjectB,
+);
 
 await execute(
   buildMintInviteTransaction(
     moveConfig,
     marketId,
-    parseSuiAddress(addressOf(invitee)),
+    creatorProfile,
+    inviteeProfile,
     1_000_000_000n,
     closeMs,
   ),
@@ -86,7 +107,14 @@ const inviteId = await findOwnedObject(
 assert.ok(inviteId, "invitee owns a real InviteTicket object");
 
 await execute(
-  buildPlaceTransaction(moveConfig, marketId, inviteId, "yes", 100_000_000n),
+  buildPlaceTransaction(
+    moveConfig,
+    marketId,
+    inviteId,
+    inviteeProfile,
+    "yes",
+    100_000_000n,
+  ),
   invitee,
 );
 
@@ -98,17 +126,30 @@ assert.ok(positionId, "invitee owns a real Position object");
 
 await sleepUntilChainClock(earliestAttestMs + 300);
 await execute(
-  buildSubmitAttestationTransaction(moveConfig, marketId, "yes"),
+  buildSubmitAttestationTransaction(
+    moveConfig,
+    marketId,
+    subjectAProfile,
+    "yes",
+  ),
   subjectA,
 );
 await execute(
-  buildSubmitAttestationTransaction(moveConfig, marketId, "yes"),
+  buildSubmitAttestationTransaction(
+    moveConfig,
+    marketId,
+    subjectBProfile,
+    "yes",
+  ),
   subjectB,
 );
 
 await sleepUntilChainClock((await chainClockMs()) + challengeWindowMs + 300);
 await execute(buildFinalizeTransaction(moveConfig, marketId), creator);
-await execute(buildClaimTransaction(moveConfig, marketId, positionId), invitee);
+await execute(
+  buildClaimTransaction(moveConfig, marketId, positionId, inviteeProfile),
+  invitee,
+);
 
 const market = await client.core.getObject({
   objectId: marketId,
@@ -164,6 +205,41 @@ async function fund(keypair) {
         timeout: 30_000,
       }),
     ),
+  );
+}
+
+async function createProfile(handle, signer) {
+  const result = await execute(
+    buildCreateProfileTransaction(moveConfig, handle),
+    signer,
+  );
+  const profileId = findCreatedProfileId(result);
+  assert.ok(profileId, `create_profile emitted a profile id for ${handle}`);
+  return profileId;
+}
+
+async function befriend(requester, requesterProfile, target, targetProfile) {
+  await execute(
+    buildRequestFriendshipTransaction(
+      moveConfig,
+      requesterProfile,
+      targetProfile,
+    ),
+    requester,
+  );
+  const requestId = await findOwnedObject(
+    addressOf(target),
+    `${packageId}::market::FriendRequest`,
+  );
+  assert.ok(requestId, "target owns a real FriendRequest object");
+  await execute(
+    buildAcceptFriendshipTransaction(
+      moveConfig,
+      requestId,
+      targetProfile,
+      requesterProfile,
+    ),
+    target,
   );
 }
 

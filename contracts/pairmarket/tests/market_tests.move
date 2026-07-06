@@ -17,14 +17,17 @@
 #[test_only]
 module pairmarket::market_tests {
 
+    use std::option;
     use sui::clock::{Self, Clock};
     use sui::coin::{Self, Coin};
+    use sui::object::ID;
     use sui::test_scenario::{Self as ts, Scenario};
     use pairmarket::market::{
         Self as pm,
         Market,
         InviteTicket,
         Position,
+        Profile,
         Config,
         AdminCap,
     };
@@ -44,29 +47,77 @@ module pairmarket::market_tests {
     const CHALLENGE_WINDOW_MS: u64 = 500;
     const DISPUTE_DEADLINE_MS: u64 = 4_000;
 
+    public struct Profiles has copy, drop {
+        creator: ID,
+        alice: ID,
+        bob: ID,
+        paula: ID,
+        quinn: ID,
+    }
+
     // ---- Helpers ----
 
-    fun start_with_config(): Scenario {
+    fun start_with_config(): (Scenario, Profiles) {
         let mut scenario = ts::begin(CREATOR);
         pm::test_init(ts::ctx(&mut scenario));
+        let profiles = create_profiles(&mut scenario);
         ts::next_tx(&mut scenario, CREATOR);
-        scenario
+        (scenario, profiles)
+    }
+
+    fun create_profiles(scenario: &mut Scenario): Profiles {
+        ts::next_tx(scenario, CREATOR);
+        pm::create_profile(b"creator", ts::ctx(scenario));
+
+        ts::next_tx(scenario, ALICE);
+        let creator = *option::borrow(&ts::most_recent_id_shared<Profile>());
+        pm::create_profile(b"alice", ts::ctx(scenario));
+
+        ts::next_tx(scenario, BOB);
+        let alice = *option::borrow(&ts::most_recent_id_shared<Profile>());
+        pm::create_profile(b"bob", ts::ctx(scenario));
+
+        ts::next_tx(scenario, PAULA);
+        let bob = *option::borrow(&ts::most_recent_id_shared<Profile>());
+        pm::create_profile(b"paula", ts::ctx(scenario));
+
+        ts::next_tx(scenario, QUINN);
+        let paula = *option::borrow(&ts::most_recent_id_shared<Profile>());
+        pm::create_profile(b"quinn", ts::ctx(scenario));
+
+        ts::next_tx(scenario, CREATOR);
+        let quinn = *option::borrow(&ts::most_recent_id_shared<Profile>());
+
+        Profiles { creator, alice, bob, paula, quinn }
+    }
+
+    fun profile_for(profiles: &Profiles, who: address): ID {
+        if (who == CREATOR) return profiles.creator;
+        if (who == ALICE) return profiles.alice;
+        if (who == BOB) return profiles.bob;
+        if (who == PAULA) return profiles.paula;
+        profiles.quinn
     }
 
     fun make_clock(scenario: &mut Scenario): Clock {
         clock::create_for_testing(ts::ctx(scenario))
     }
 
-    fun create_default_market(scenario: &mut Scenario, clock: &Clock) {
+    fun create_default_market(scenario: &mut Scenario, profiles: &Profiles, clock: &Clock) {
         let config = ts::take_shared<Config>(scenario);
-        let committee = vector[CREATOR];
+        let creator_profile = ts::take_shared_by_id<Profile>(scenario, profiles.creator);
+        let alice_profile = ts::take_shared_by_id<Profile>(scenario, profiles.alice);
+        let bob_profile = ts::take_shared_by_id<Profile>(scenario, profiles.bob);
+        let committee = vector[profiles.creator];
         pm::create_market<TEST_TOKEN>(
+            &creator_profile,
             b"terms",
             b"metadata",
             b"subject",
             b"seal_policy",
-            ALICE,
-            BOB,
+            &alice_profile,
+            &bob_profile,
+            pm::visibility_friends(),
             CLOSE_MS,
             EARLIEST_ATTEST_MS,
             RESOLUTION_DEADLINE_MS,
@@ -78,32 +129,43 @@ module pairmarket::market_tests {
             clock,
             ts::ctx(scenario),
         );
+        ts::return_shared(creator_profile);
+        ts::return_shared(alice_profile);
+        ts::return_shared(bob_profile);
         ts::return_shared(config);
     }
 
-    fun consent(scenario: &mut Scenario, who: address, clock: &Clock) {
+    fun consent(scenario: &mut Scenario, profiles: &Profiles, who: address, clock: &Clock) {
         ts::next_tx(scenario, who);
         let mut market = ts::take_shared<Market<TEST_TOKEN>>(scenario);
-        pm::record_subject_consent<TEST_TOKEN>(&mut market, clock, ts::ctx(scenario));
+        let profile = ts::take_shared_by_id<Profile>(scenario, profile_for(profiles, who));
+        pm::record_subject_consent<TEST_TOKEN>(&mut market, &profile, clock, ts::ctx(scenario));
+        ts::return_shared(profile);
         ts::return_shared(market);
     }
 
-    fun mint(scenario: &mut Scenario, grantee: address, max_stake: u64, expires: u64, clock: &Clock) {
+    fun mint(scenario: &mut Scenario, profiles: &Profiles, grantee: address, max_stake: u64, expires: u64, clock: &Clock) {
         ts::next_tx(scenario, CREATOR);
         let mut market = ts::take_shared<Market<TEST_TOKEN>>(scenario);
+        let creator_profile = ts::take_shared_by_id<Profile>(scenario, profiles.creator);
+        let grantee_profile = ts::take_shared_by_id<Profile>(scenario, profile_for(profiles, grantee));
         pm::mint_invite<TEST_TOKEN>(
             &mut market,
-            grantee,
+            &creator_profile,
+            &grantee_profile,
             max_stake,
             expires,
             clock,
             ts::ctx(scenario),
         );
+        ts::return_shared(creator_profile);
+        ts::return_shared(grantee_profile);
         ts::return_shared(market);
     }
 
     fun place_as(
         scenario: &mut Scenario,
+        profiles: &Profiles,
         who: address,
         amount: u64,
         outcome: u8,
@@ -112,28 +174,34 @@ module pairmarket::market_tests {
         ts::next_tx(scenario, who);
         let mut market = ts::take_shared<Market<TEST_TOKEN>>(scenario);
         let invite = ts::take_from_sender<InviteTicket>(scenario);
+        let profile = ts::take_shared_by_id<Profile>(scenario, profile_for(profiles, who));
         let stake_coin = coin::mint_for_testing<TEST_TOKEN>(amount, ts::ctx(scenario));
         pm::place<TEST_TOKEN>(
             &mut market,
             invite,
+            &profile,
             stake_coin,
             outcome,
             clock,
             ts::ctx(scenario),
         );
+        ts::return_shared(profile);
         ts::return_shared(market);
     }
 
-    fun attest(scenario: &mut Scenario, who: address, outcome: u8, clock: &Clock) {
+    fun attest(scenario: &mut Scenario, profiles: &Profiles, who: address, outcome: u8, clock: &Clock) {
         ts::next_tx(scenario, who);
         let mut market = ts::take_shared<Market<TEST_TOKEN>>(scenario);
+        let profile = ts::take_shared_by_id<Profile>(scenario, profile_for(profiles, who));
         pm::submit_attestation<TEST_TOKEN>(
             &mut market,
+            &profile,
             outcome,
             b"evhash",
             clock,
             ts::ctx(scenario),
         );
+        ts::return_shared(profile);
         ts::return_shared(market);
     }
 
@@ -148,29 +216,29 @@ module pairmarket::market_tests {
 
     #[test]
     fun happy_path_yes_resolves_pays() {
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         // Create market at t = 0.
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
 
         // Both subjects consent.
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
 
         // Creator mints invites.
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        mint(&mut scenario, QUINN, 1_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, QUINN, 1_000, CLOSE_MS, &clock);
 
         // Place wagers: Paula bets YES 600, Quinn bets NO 400.
-        place_as(&mut scenario, PAULA, 600, pm::outcome_yes(), &clock);
-        place_as(&mut scenario, QUINN, 400, pm::outcome_no(), &clock);
+        place_as(&mut scenario, &profiles, PAULA, 600, pm::outcome_yes(), &clock);
+        place_as(&mut scenario, &profiles, QUINN, 400, pm::outcome_no(), &clock);
 
         // Advance to attestation window and have both subjects agree YES.
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS);
-        attest(&mut scenario, ALICE, pm::outcome_yes(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_yes(), &clock);
 
         // Wait out the challenge window and finalize.
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS + CHALLENGE_WINDOW_MS + 1);
@@ -193,10 +261,12 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::claim<TEST_TOKEN>(&mut market, &mut position, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::claim<TEST_TOKEN>(&mut market, &mut position, &profile, ts::ctx(&mut scenario));
             assert!(pm::position_claimed(&position), 1005);
             assert!(pm::winning_shares_remaining(&market) == 0, 1006);
             assert!(pm::payout_pool_value(&market) == 0, 1007);
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -219,15 +289,15 @@ module pairmarket::market_tests {
 
     #[test]
     fun cancel_refunds_full_stake_no_fee() {
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 500, pm::outcome_yes(), &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 500, pm::outcome_yes(), &clock);
 
         // Admin cancels mid-trading.
         ts::next_tx(&mut scenario, CREATOR);
@@ -246,9 +316,11 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::refund<TEST_TOKEN>(&mut market, &mut position, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::refund<TEST_TOKEN>(&mut market, &mut position, &profile, ts::ctx(&mut scenario));
             assert!(pm::position_claimed(&position), 2003);
             assert!(pm::yes_pool_value(&market) == 0, 2004);
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -267,21 +339,21 @@ module pairmarket::market_tests {
     #[test]
     #[expected_failure(abort_code = 11, location = pairmarket::market)]
     fun double_claim_aborts() {
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        mint(&mut scenario, QUINN, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 500, pm::outcome_yes(), &clock);
-        place_as(&mut scenario, QUINN, 500, pm::outcome_no(), &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, QUINN, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 500, pm::outcome_yes(), &clock);
+        place_as(&mut scenario, &profiles, QUINN, 500, pm::outcome_no(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS);
-        attest(&mut scenario, ALICE, pm::outcome_yes(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_yes(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS + CHALLENGE_WINDOW_MS + 1);
         finalize(&mut scenario, &clock);
@@ -291,7 +363,9 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::claim<TEST_TOKEN>(&mut market, &mut position, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::claim<TEST_TOKEN>(&mut market, &mut position, &profile, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -301,7 +375,9 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::claim<TEST_TOKEN>(&mut market, &mut position, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::claim<TEST_TOKEN>(&mut market, &mut position, &profile, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -313,17 +389,17 @@ module pairmarket::market_tests {
     #[test]
     #[expected_failure(abort_code = 6, location = pairmarket::market)]
     fun unknown_outcome_aborts() {
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
 
         // Place with OUTCOME_INVALID (=3) — must abort EUnknownOutcome (=6).
-        place_as(&mut scenario, PAULA, 100, pm::outcome_invalid(), &clock);
+        place_as(&mut scenario, &profiles, PAULA, 100, pm::outcome_invalid(), &clock);
 
         clock::destroy_for_testing(clock);
         ts::end(scenario);
@@ -332,23 +408,31 @@ module pairmarket::market_tests {
     #[test]
     #[expected_failure(abort_code = 12, location = pairmarket::market)]
     fun fee_cap_enforced() {
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
         let config = ts::take_shared<Config>(&scenario);
+        let creator_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.creator);
+        let alice_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.alice);
+        let bob_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.bob);
         // Config.max_fee_bps default is 500; pass 600 to trigger EFeeCapExceeded.
         pm::create_market<TEST_TOKEN>(
+            &creator_profile,
             b"t", b"m", b"s", b"p",
-            ALICE, BOB,
+            &alice_profile, &bob_profile,
+            pm::visibility_friends(),
             CLOSE_MS, EARLIEST_ATTEST_MS, RESOLUTION_DEADLINE_MS,
             CHALLENGE_WINDOW_MS, DISPUTE_DEADLINE_MS,
             600, // > max_fee_bps
-            vector[CREATOR],
+            vector[profiles.creator],
             &config,
             &clock,
             ts::ctx(&mut scenario),
         );
+        ts::return_shared(creator_profile);
+        ts::return_shared(alice_profile);
+        ts::return_shared(bob_profile);
         ts::return_shared(config);
 
         clock::destroy_for_testing(clock);
@@ -357,21 +441,21 @@ module pairmarket::market_tests {
 
     #[test]
     fun attestation_mismatch_resets_round() {
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        mint(&mut scenario, QUINN, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 100, pm::outcome_yes(), &clock);
-        place_as(&mut scenario, QUINN, 100, pm::outcome_no(), &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, QUINN, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 100, pm::outcome_yes(), &clock);
+        place_as(&mut scenario, &profiles, QUINN, 100, pm::outcome_no(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS);
-        attest(&mut scenario, ALICE, pm::outcome_yes(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_no(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_no(), &clock);
 
         // After mismatch, state should still be ATTESTATION_PENDING (3), not
         // CHALLENGE_WINDOW (4). Use winning_outcome accessor — must remain UNSET.
@@ -383,8 +467,8 @@ module pairmarket::market_tests {
         };
 
         // Both retry, this time matching NO.
-        attest(&mut scenario, ALICE, pm::outcome_no(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_no(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_no(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_no(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS + CHALLENGE_WINDOW_MS + 1);
         finalize(&mut scenario, &clock);
@@ -402,23 +486,23 @@ module pairmarket::market_tests {
 
     #[test]
     fun binary_escrow_conservation() {
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 10_000, CLOSE_MS, &clock);
-        mint(&mut scenario, QUINN, 10_000, CLOSE_MS, &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 10_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, QUINN, 10_000, CLOSE_MS, &clock);
 
         // Asymmetric stakes that force rounding in claim math.
-        place_as(&mut scenario, PAULA, 333, pm::outcome_yes(), &clock);
-        place_as(&mut scenario, QUINN, 777, pm::outcome_no(), &clock);
+        place_as(&mut scenario, &profiles, PAULA, 333, pm::outcome_yes(), &clock);
+        place_as(&mut scenario, &profiles, QUINN, 777, pm::outcome_no(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS);
-        attest(&mut scenario, ALICE, pm::outcome_yes(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_yes(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS + CHALLENGE_WINDOW_MS + 1);
         finalize(&mut scenario, &clock);
@@ -429,7 +513,9 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::claim<TEST_TOKEN>(&mut market, &mut position, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::claim<TEST_TOKEN>(&mut market, &mut position, &profile, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -462,19 +548,25 @@ module pairmarket::market_tests {
     fun same_subject_aborts() {
         // Critical fix: create_market must reject subject_a == subject_b
         // so a single party cannot unilaterally consent and attest.
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
         let config = ts::take_shared<Config>(&scenario);
+        let creator_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.creator);
+        let alice_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.alice);
         pm::create_market<TEST_TOKEN>(
+            &creator_profile,
             b"t", b"m", b"s", b"p",
-            ALICE, ALICE, // same address — must abort ESameSubject (=28)
+            &alice_profile, &alice_profile, // same profile — must abort ESameSubject (=28)
+            pm::visibility_friends(),
             CLOSE_MS, EARLIEST_ATTEST_MS, RESOLUTION_DEADLINE_MS,
             CHALLENGE_WINDOW_MS, DISPUTE_DEADLINE_MS,
-            100, vector[CREATOR],
+            100, vector[profiles.creator],
             &config, &clock, ts::ctx(&mut scenario),
         );
+        ts::return_shared(creator_profile);
+        ts::return_shared(alice_profile);
         ts::return_shared(config);
 
         clock::destroy_for_testing(clock);
@@ -486,20 +578,28 @@ module pairmarket::market_tests {
     fun bad_durations_aborts() {
         // create_market must reject a challenge_window_ms that does not fit
         // in [resolution_deadline_ms, dispute_deadline_ms].
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
         let config = ts::take_shared<Config>(&scenario);
+        let creator_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.creator);
+        let alice_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.alice);
+        let bob_profile = ts::take_shared_by_id<Profile>(&scenario, profiles.bob);
         pm::create_market<TEST_TOKEN>(
+            &creator_profile,
             b"t", b"m", b"s", b"p",
-            ALICE, BOB,
+            &alice_profile, &bob_profile,
+            pm::visibility_friends(),
             CLOSE_MS, EARLIEST_ATTEST_MS, RESOLUTION_DEADLINE_MS,
             (DISPUTE_DEADLINE_MS - RESOLUTION_DEADLINE_MS) + 1,
             DISPUTE_DEADLINE_MS,
-            100, vector[CREATOR],
+            100, vector[profiles.creator],
             &config, &clock, ts::ctx(&mut scenario),
         );
+        ts::return_shared(creator_profile);
+        ts::return_shared(alice_profile);
+        ts::return_shared(bob_profile);
         ts::return_shared(config);
 
         clock::destroy_for_testing(clock);
@@ -511,15 +611,15 @@ module pairmarket::market_tests {
         // Critical fix: a market stranded in Trading/Locked after the
         // resolution deadline must be expirable via finalize(), not require
         // admin cancellation. Participants then refund.
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 200, pm::outcome_yes(), &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 200, pm::outcome_yes(), &clock);
 
         // Past close: trader could lock, but doesn't have to.
         clock::set_for_testing(&mut clock, CLOSE_MS + 1);
@@ -546,7 +646,9 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::refund<TEST_TOKEN>(&mut market, &mut position, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::refund<TEST_TOKEN>(&mut market, &mut position, &profile, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -570,22 +672,22 @@ module pairmarket::market_tests {
         // This covers the invite single-use guarantee from the other angle:
         // even if Paula keeps the ticket alive (no place on X), she cannot
         // exchange it for a position on a different market.
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock); // X
+        create_default_market(&mut scenario, &profiles, &clock); // X
         ts::next_tx(&mut scenario, CREATOR);
         let x_id = *option::borrow(
             &ts::most_recent_id_shared<Market<TEST_TOKEN>>()
         );
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock); // X-invite
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock); // X-invite
 
         // Y: a second Trading-state market with same subjects, different ID.
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
         ts::next_tx(&mut scenario, CREATOR);
         let y_id = *option::borrow(
             &ts::most_recent_id_shared<Market<TEST_TOKEN>>()
@@ -596,13 +698,17 @@ module pairmarket::market_tests {
         ts::next_tx(&mut scenario, ALICE);
         {
             let mut y = ts::take_shared_by_id<Market<TEST_TOKEN>>(&scenario, y_id);
-            pm::record_subject_consent<TEST_TOKEN>(&mut y, &clock, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.alice);
+            pm::record_subject_consent<TEST_TOKEN>(&mut y, &profile, &clock, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_shared(y);
         };
         ts::next_tx(&mut scenario, BOB);
         {
             let mut y = ts::take_shared_by_id<Market<TEST_TOKEN>>(&scenario, y_id);
-            pm::record_subject_consent<TEST_TOKEN>(&mut y, &clock, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.bob);
+            pm::record_subject_consent<TEST_TOKEN>(&mut y, &profile, &clock, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_shared(y);
         };
 
@@ -611,15 +717,18 @@ module pairmarket::market_tests {
         {
             let mut y = ts::take_shared_by_id<Market<TEST_TOKEN>>(&scenario, y_id);
             let invite = ts::take_from_sender<InviteTicket>(&scenario);
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
             let stake_coin = coin::mint_for_testing<TEST_TOKEN>(50, ts::ctx(&mut scenario));
             pm::place<TEST_TOKEN>(
                 &mut y,
                 invite,
+                &profile,
                 stake_coin,
                 pm::outcome_yes(),
                 &clock,
                 ts::ctx(&mut scenario),
             );
+            ts::return_shared(profile);
             ts::return_shared(y);
         };
 
@@ -632,26 +741,26 @@ module pairmarket::market_tests {
     fun cross_market_refund_aborts() {
         // Cross-market invariant: a Position bound to market X cannot be
         // refunded against a different (cancelled) market Y.
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let clock = make_clock(&mut scenario);
 
         // --- Market X: create, consent, mint, place. ---
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
         ts::next_tx(&mut scenario, CREATOR);
         let x_id = *option::borrow(
             &ts::most_recent_id_shared<Market<TEST_TOKEN>>()
         );
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 100, pm::outcome_yes(), &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 100, pm::outcome_yes(), &clock);
 
         // --- Market Y: second market, cancelled by admin so refund is the
         //     enabled exit path there. Capture its ID via the most-recent
         //     shared inventory helper. ---
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
         ts::next_tx(&mut scenario, CREATOR);
         let y_id = *option::borrow(
             &ts::most_recent_id_shared<Market<TEST_TOKEN>>()
@@ -670,7 +779,9 @@ module pairmarket::market_tests {
         {
             let mut y = ts::take_shared_by_id<Market<TEST_TOKEN>>(&scenario, y_id);
             let mut x_position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::refund<TEST_TOKEN>(&mut y, &mut x_position, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::refund<TEST_TOKEN>(&mut y, &mut x_position, &profile, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, x_position);
             ts::return_shared(y);
         };
@@ -684,33 +795,36 @@ module pairmarket::market_tests {
     fun committee_verdict_cannot_overwrite() {
         // Submitting a second committee verdict on a disputed market must
         // abort EVerdictAlreadySet (=30).
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        mint(&mut scenario, QUINN, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 100, pm::outcome_yes(), &clock);
-        place_as(&mut scenario, QUINN, 100, pm::outcome_no(), &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, QUINN, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 100, pm::outcome_yes(), &clock);
+        place_as(&mut scenario, &profiles, QUINN, 100, pm::outcome_no(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS);
-        attest(&mut scenario, ALICE, pm::outcome_yes(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_yes(), &clock);
 
         // Open a challenge from the losing-side participant (Quinn / NO).
         ts::next_tx(&mut scenario, QUINN);
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.quinn);
             pm::open_challenge<TEST_TOKEN>(
                 &mut market,
                 &position,
+                &profile,
                 &clock,
                 ts::ctx(&mut scenario),
             );
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -719,12 +833,15 @@ module pairmarket::market_tests {
         ts::next_tx(&mut scenario, CREATOR);
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.creator);
             pm::submit_committee_verdict<TEST_TOKEN>(
                 &mut market,
+                &profile,
                 pm::outcome_no(),
                 &clock,
                 ts::ctx(&mut scenario),
             );
+            ts::return_shared(profile);
             ts::return_shared(market);
         };
 
@@ -732,12 +849,15 @@ module pairmarket::market_tests {
         ts::next_tx(&mut scenario, CREATOR);
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.creator);
             pm::submit_committee_verdict<TEST_TOKEN>(
                 &mut market,
+                &profile,
                 pm::outcome_yes(),
                 &clock,
                 ts::ctx(&mut scenario),
             );
+            ts::return_shared(profile);
             ts::return_shared(market);
         };
 
@@ -750,33 +870,36 @@ module pairmarket::market_tests {
     fun challenger_on_winning_side_aborts() {
         // open_challenge by a holder of the matched-outcome side must abort
         // EChallengerOnWinningSide (=31).
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        mint(&mut scenario, QUINN, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 100, pm::outcome_yes(), &clock);
-        place_as(&mut scenario, QUINN, 100, pm::outcome_no(), &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, QUINN, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 100, pm::outcome_yes(), &clock);
+        place_as(&mut scenario, &profiles, QUINN, 100, pm::outcome_no(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS);
-        attest(&mut scenario, ALICE, pm::outcome_yes(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_yes(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_yes(), &clock);
 
         // Paula is on the matched YES side; attempt must abort.
         ts::next_tx(&mut scenario, PAULA);
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let position = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
             pm::open_challenge<TEST_TOKEN>(
                 &mut market,
                 &position,
+                &profile,
                 &clock,
                 ts::ctx(&mut scenario),
             );
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, position);
             ts::return_shared(market);
         };
@@ -789,21 +912,21 @@ module pairmarket::market_tests {
     fun invalid_outcome_routes_to_refund() {
         // Both subjects attest INVALID -> matched -> finalize -> Expired ->
         // both participants refund gross stake; no fee accrued.
-        let mut scenario = start_with_config();
+        let (mut scenario, profiles) = start_with_config();
         let mut clock = make_clock(&mut scenario);
 
         ts::next_tx(&mut scenario, CREATOR);
-        create_default_market(&mut scenario, &clock);
-        consent(&mut scenario, ALICE, &clock);
-        consent(&mut scenario, BOB, &clock);
-        mint(&mut scenario, PAULA, 1_000, CLOSE_MS, &clock);
-        mint(&mut scenario, QUINN, 1_000, CLOSE_MS, &clock);
-        place_as(&mut scenario, PAULA, 300, pm::outcome_yes(), &clock);
-        place_as(&mut scenario, QUINN, 700, pm::outcome_no(), &clock);
+        create_default_market(&mut scenario, &profiles, &clock);
+        consent(&mut scenario, &profiles, ALICE, &clock);
+        consent(&mut scenario, &profiles, BOB, &clock);
+        mint(&mut scenario, &profiles, PAULA, 1_000, CLOSE_MS, &clock);
+        mint(&mut scenario, &profiles, QUINN, 1_000, CLOSE_MS, &clock);
+        place_as(&mut scenario, &profiles, PAULA, 300, pm::outcome_yes(), &clock);
+        place_as(&mut scenario, &profiles, QUINN, 700, pm::outcome_no(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS);
-        attest(&mut scenario, ALICE, pm::outcome_invalid(), &clock);
-        attest(&mut scenario, BOB, pm::outcome_invalid(), &clock);
+        attest(&mut scenario, &profiles, ALICE, pm::outcome_invalid(), &clock);
+        attest(&mut scenario, &profiles, BOB, pm::outcome_invalid(), &clock);
 
         clock::set_for_testing(&mut clock, EARLIEST_ATTEST_MS + CHALLENGE_WINDOW_MS + 1);
         finalize(&mut scenario, &clock);
@@ -821,7 +944,9 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut p = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::refund<TEST_TOKEN>(&mut market, &mut p, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.paula);
+            pm::refund<TEST_TOKEN>(&mut market, &mut p, &profile, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, p);
             ts::return_shared(market);
         };
@@ -829,7 +954,9 @@ module pairmarket::market_tests {
         {
             let mut market = ts::take_shared<Market<TEST_TOKEN>>(&scenario);
             let mut q = ts::take_from_sender<Position<TEST_TOKEN>>(&scenario);
-            pm::refund<TEST_TOKEN>(&mut market, &mut q, ts::ctx(&mut scenario));
+            let profile = ts::take_shared_by_id<Profile>(&scenario, profiles.quinn);
+            pm::refund<TEST_TOKEN>(&mut market, &mut q, &profile, ts::ctx(&mut scenario));
+            ts::return_shared(profile);
             ts::return_to_sender(&scenario, q);
             ts::return_shared(market);
         };

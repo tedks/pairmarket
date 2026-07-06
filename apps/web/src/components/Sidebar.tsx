@@ -14,6 +14,7 @@ export function Sidebar({ route, setRoute, state }: SidebarProps): JSX.Element {
   const memberMarkets = [...state.markets.values()].filter((m) =>
     viewerIsMember(state, m),
   );
+  const visibleMarkets = state.markets.size;
   const needsAction = memberMarkets.filter((m) =>
     viewerMarketAction(state, m),
   ).length;
@@ -22,7 +23,7 @@ export function Sidebar({ route, setRoute, state }: SidebarProps): JSX.Element {
     <nav className="app-sidebar" aria-label="primary">
       <NavItem
         label="Markets"
-        badge={memberMarkets.length}
+        badge={visibleMarkets}
         active={
           route.kind === "market" ||
           (route.kind === "markets" && route.filter === "all")
@@ -35,6 +36,13 @@ export function Sidebar({ route, setRoute, state }: SidebarProps): JSX.Element {
         emphasize={needsAction > 0}
         active={route.kind === "markets" && route.filter === "needs-you"}
         onClick={() => setRoute({ kind: "markets", filter: "needs-you" })}
+      />
+      <NavItem
+        label="Social"
+        badge={state.friendRequests.length}
+        emphasize={state.friendRequests.length > 0}
+        active={route.kind === "social"}
+        onClick={() => setRoute({ kind: "social" })}
       />
       <NavItem
         label="New market"

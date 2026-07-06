@@ -1,8 +1,4 @@
-import {
-  parseMarketId,
-  parseSuiAddress,
-  parseSuiObjectId,
-} from "@pairmarket/core";
+import { parseMarketId, parseSuiObjectId } from "@pairmarket/core";
 import {
   buildCreateMarketTransaction,
   findCreatedMarketId,
@@ -16,9 +12,9 @@ function assert(condition, message) {
 
 const packageId = parseSuiObjectId("0x1234");
 const configId = parseSuiObjectId("0x5678");
-const creator = parseSuiAddress("0xcafe");
-const subjectA = parseSuiAddress("0xaaaa");
-const subjectB = parseSuiAddress("0xbbbb");
+const creatorProfile = parseSuiObjectId("0xcafe");
+const subjectAProfile = parseSuiObjectId("0xaaaa");
+const subjectBProfile = parseSuiObjectId("0xbbbb");
 const now = Date.now();
 const closeMs = now + 86_400_000;
 const earliestAttestMs = closeMs + 3_600_000;
@@ -26,19 +22,20 @@ const resolutionDeadlineMs = earliestAttestMs + 86_400_000;
 
 const tx = await buildCreateMarketTransaction({
   config: { packageId, configId },
-  creator,
+  creatorProfile,
   operationalization: { kind: "lasts-n-dates", n: 3 },
+  visibility: "friends",
   title: "Private localnet title",
   prompt: "Private localnet prompt",
-  subjectA,
-  subjectB,
+  subjectAProfile,
+  subjectBProfile,
   closeMs,
   earliestAttestMs,
   resolutionDeadlineMs,
   challengeWindowMs: 86_400_000,
   disputeDeadlineMs: resolutionDeadlineMs + 86_400_000,
   feeBps: 0,
-  resolverCommittee: [creator],
+  resolverCommittee: [creatorProfile],
 });
 
 assert(typeof tx === "object" && tx !== null, "create-market tx is built");

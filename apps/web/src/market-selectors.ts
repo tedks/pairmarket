@@ -17,7 +17,6 @@ export function sharesByOutcome(market: Market, outcome: WagerOutcome): bigint {
 
 export function viewerIsMember(state: AppState, market: Market): boolean {
   if (market.creator === state.viewer) return true;
-  if (market.subjects.some((s) => s.user === state.viewer)) return true;
   if (market.invites.some((i) => i.invitee === state.viewer)) return true;
   if (market.positions.some((p) => p.owner === state.viewer)) return true;
   return false;
