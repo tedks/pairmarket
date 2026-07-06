@@ -8,7 +8,7 @@ import {
   phaseLabel,
   formatDuration,
 } from "../format.ts";
-import { payoutPool, viewerIsMember } from "../mock/intents.ts";
+import { payoutPool, viewerIsMember } from "../market-selectors.ts";
 import { viewerMarketAction } from "../market-actions.ts";
 
 type Props = {

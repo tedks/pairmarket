@@ -220,19 +220,23 @@ Core fields:
 - `terms_hash: vector<u8>`
 - `metadata_ref: EncryptedRef<P1Participant>`
 - `subject_ref: EncryptedRef<P2Subject>`
-- `evidence_ref: Option<EncryptedRef<P4Evidence>>`
 - `seal_policy_id: vector<u8>`
-- `policy_epoch: u32`
 - `state: u8`
-- `created_ms`, `close_ms`, `earliest_attest_ms`, `resolution_deadline_ms`
+- `close_ms`, `earliest_attest_ms`, `resolution_deadline_ms`
 - `challenge_window_ms`, `dispute_deadline_ms`
 - `subject_a`, `subject_b: address`
+- `consent_a`, `consent_b: bool`
+- `last_attestation_a`, `last_attestation_b`, `matched_outcome: u8`
 - `resolver_committee: vector<address>`
 - `fee_bps: u16`
 - `yes_pool`, `no_pool`, `fee_balance`, `payout_pool: Balance<T>`
 - `yes_shares`, `no_shares`, `winning_shares_remaining: u64`
 - `winning_outcome: u8`
-- `membership: Table<address, MemberRecord>`
+
+Creation time is read from the `MarketCreated` event. Evidence references,
+policy epochs, and richer membership records remain part of the SEAL/Walrus
+privacy design, but are kept off the shared market object in the current
+prototype so the package stays within Sui's publish-time verifier field limit.
 
 Additional owned objects:
 

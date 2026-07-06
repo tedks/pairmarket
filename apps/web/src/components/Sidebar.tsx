@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import type { Route } from "../App.tsx";
 import type { AppState } from "../types.ts";
-import { viewerIsMember } from "../mock/intents.ts";
+import { viewerIsMember } from "../market-selectors.ts";
 import { viewerMarketAction } from "../market-actions.ts";
 
 type SidebarProps = {

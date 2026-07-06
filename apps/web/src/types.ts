@@ -76,10 +76,16 @@ export type Market = {
   readonly creator: UserId;
   readonly subjects: readonly [Subject, Subject];
   readonly operationalization: OperationalizationKind;
+  readonly closeMs: UnixMs;
   readonly resolutionDeadlineMs: UnixMs;
   readonly challengeWindowMs: number;
   readonly content: MarketContent;
   readonly phase: MarketPhase;
+  readonly yesPoolMist: MistAmount;
+  readonly noPoolMist: MistAmount;
+  readonly payoutPoolMist: MistAmount;
+  readonly yesSharesMist: MistAmount;
+  readonly noSharesMist: MistAmount;
   readonly invites: readonly Invite[];
   readonly positions: readonly Position[];
   readonly attestations: readonly Attestation[];

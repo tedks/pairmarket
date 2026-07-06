@@ -1,50 +1,60 @@
 import type { JSX } from "react";
-import { useMemo, useState } from "react";
-import type { UserId } from "@pairmarket/core";
-import { parseMistAmount, parseUnixMs } from "@pairmarket/core";
+import { useState } from "react";
+import { useCurrentAccount } from "@mysten/dapp-kit-react";
+import {
+  parseSuiAddress,
+  parseUnixMs,
+  tryParseSuiAddress,
+} from "@pairmarket/core";
 import type { Route } from "../App.tsx";
-import type { AppState, OperationalizationKind } from "../types.ts";
-import { createMarketDraft } from "../mock/intents.ts";
-import { setState } from "../mock/store.ts";
+import type { OperationalizationKind } from "../types.ts";
+import { requirePairmarketMoveConfig } from "../sui/config.ts";
+import {
+  buildCreateMarketTransaction,
+  findCreatedMarketId,
+} from "../sui/market.ts";
+import { saveLocalMarketMetadata } from "../sui/metadata.ts";
+import { useExecuteSuiTransaction } from "../sui/execute.ts";
 
 type Props = {
-  readonly state: AppState;
   readonly setRoute: (r: Route) => void;
+  readonly refresh: () => void;
 };
 
 type OpKindLabel = OperationalizationKind["kind"];
 
-export function CreateMarket({ state, setRoute }: Props): JSX.Element {
-  const others = useMemo(
-    () => [...state.users.values()].filter((u) => u.id !== state.viewer),
-    [state.users, state.viewer],
-  );
+export function CreateMarket({ setRoute, refresh }: Props): JSX.Element {
+  const account = useCurrentAccount();
+  const execute = useExecuteSuiTransaction();
   const [title, setTitle] = useState("Will X and Y last 3 dates?");
   const [prompt, setPrompt] = useState(
     "Three dates means three meetings of at least 90 minutes with mutual intent.",
   );
-  const [subjectA, setSubjectA] = useState<UserId | "">(others[0]?.id ?? "");
-  const [subjectB, setSubjectB] = useState<UserId | "">(others[1]?.id ?? "");
+  const [subjectA, setSubjectA] = useState("");
+  const [subjectB, setSubjectB] = useState("");
   const [opKind, setOpKind] = useState<OpKindLabel>("lasts-n-dates");
   const [nDates, setNDates] = useState(3);
-  const [opDeadlineDays, setOpDeadlineDays] = useState(7);
+  const [closeDays, setCloseDays] = useState(7);
   const [resolutionDeadlineDays, setResolutionDeadlineDays] = useState(21);
-  const [invitees, setInvitees] = useState<Set<UserId>>(new Set());
-  const [stakeCapSui, setStakeCapSui] = useState(2);
   const [err, setErr] = useState<string | undefined>(undefined);
+  const [submitting, setSubmitting] = useState(false);
+  const parsedSubjectA = tryParseSuiAddress(subjectA.trim());
+  const parsedSubjectB = tryParseSuiAddress(subjectB.trim());
   const deadlineOrderError =
-    opKind === "lasts-n-dates" || opDeadlineDays <= resolutionDeadlineDays
+    closeDays < resolutionDeadlineDays
       ? undefined
-      : "Operationalization deadline must be on or before the resolution deadline.";
+      : "Close deadline must be before the resolution deadline.";
 
   const canSubmit =
+    account !== null &&
     title.trim().length > 0 &&
-    subjectA !== "" &&
-    subjectB !== "" &&
-    subjectA !== subjectB &&
+    parsedSubjectA.ok &&
+    parsedSubjectB.ok &&
+    parsedSubjectA.value !== parsedSubjectB.value &&
     resolutionDeadlineDays > 0 &&
-    (opKind === "lasts-n-dates" || opDeadlineDays > 0) &&
-    deadlineOrderError === undefined;
+    closeDays > 0 &&
+    deadlineOrderError === undefined &&
+    !submitting;
 
   return (
     <section className="create-market">
@@ -61,44 +71,63 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
           e.preventDefault();
           setErr(undefined);
           if (!canSubmit) return;
-          try {
-            const resolutionDeadlineMs = parseUnixMs(
-              (state.nowMs as number) + resolutionDeadlineDays * 86_400_000,
-            );
-            const op: OperationalizationKind =
-              opKind === "lasts-n-dates"
-                ? { kind: "lasts-n-dates", n: nDates }
-                : (() => {
-                    const deadlineMs = parseUnixMs(
-                      (state.nowMs as number) + opDeadlineDays * 86_400_000,
-                    );
-                    return opKind === "together-by-date"
-                      ? { kind: "together-by-date", deadlineMs }
-                      : { kind: "meet-by-date", deadlineMs };
-                  })();
-            const next = createMarketDraft(state, {
-              title,
-              prompt,
-              subjectA: subjectA as UserId,
-              subjectB: subjectB as UserId,
-              operationalization: op,
-              resolutionDeadlineMs,
-              challengeWindowMs: 2 * 86_400_000,
-              invitees: [...invitees].map((id) => ({
-                invitee: id,
-                maxStakeMist: parseMistAmount(
-                  BigInt(Math.round(stakeCapSui * 1_000_000_000)),
-                ),
-              })),
-            });
-            setState(next);
-            // Navigate to the newly created market: it's the latest.
-            const latest = [...next.markets.values()].at(-1);
-            if (latest) setRoute({ kind: "market", id: latest.id });
-            else setRoute({ kind: "markets", filter: "all" });
-          } catch (e) {
-            setErr(e instanceof Error ? e.message : String(e));
-          }
+          setSubmitting(true);
+          void (async () => {
+            try {
+              const config = requirePairmarketMoveConfig();
+              const now = Date.now();
+              const challengeWindowMs = 2 * 86_400_000;
+              const closeMs = now + closeDays * 86_400_000;
+              const resolutionDeadlineMs =
+                now + resolutionDeadlineDays * 86_400_000;
+              const operationalization: OperationalizationKind =
+                opKind === "lasts-n-dates"
+                  ? { kind: "lasts-n-dates", n: nDates }
+                  : opKind === "together-by-date"
+                    ? {
+                        kind: "together-by-date",
+                        deadlineMs: parseUnixMs(closeMs),
+                      }
+                    : {
+                        kind: "meet-by-date",
+                        deadlineMs: parseUnixMs(closeMs),
+                      };
+              const tx = await buildCreateMarketTransaction({
+                config,
+                creator: parseSuiAddress(account!.address),
+                operationalization,
+                title,
+                prompt,
+                subjectA: parsedSubjectA.value,
+                subjectB: parsedSubjectB.value,
+                closeMs,
+                earliestAttestMs: closeMs,
+                resolutionDeadlineMs,
+                challengeWindowMs,
+                disputeDeadlineMs: resolutionDeadlineMs + challengeWindowMs,
+                feeBps: 0,
+                resolverCommittee: [parseSuiAddress(account!.address)],
+              });
+              const result = await execute(tx);
+              const marketId = findCreatedMarketId(result);
+              if (marketId !== undefined) {
+                saveLocalMarketMetadata(config.packageId, marketId, {
+                  title,
+                  prompt,
+                  operationalization,
+                });
+                refresh();
+                setRoute({ kind: "market", id: marketId });
+              } else {
+                refresh();
+                setRoute({ kind: "markets", filter: "all" });
+              }
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : String(e));
+            } finally {
+              setSubmitting(false);
+            }
+          })();
         }}
       >
         <div className="form-grid">
@@ -121,34 +150,24 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
           </Field>
 
           <Field label="Subject A">
-            <select
+            <input
+              type="text"
               value={subjectA}
-              onChange={(e) => setSubjectA(e.target.value as UserId)}
+              onChange={(e) => setSubjectA(e.target.value)}
               data-testid="create-subject-a"
+              placeholder="0x..."
               required
-            >
-              {others.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.displayName} · @{u.handle}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
           <Field label="Subject B">
-            <select
+            <input
+              type="text"
               value={subjectB}
-              onChange={(e) => setSubjectB(e.target.value as UserId)}
+              onChange={(e) => setSubjectB(e.target.value)}
               data-testid="create-subject-b"
+              placeholder="0x..."
               required
-            >
-              {others
-                .filter((u) => u.id !== subjectA)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.displayName} · @{u.handle}
-                  </option>
-                ))}
-            </select>
+            />
           </Field>
 
           <Field label="Operationalization">
@@ -173,13 +192,13 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
               />
             </Field>
           ) : (
-            <Field label="Operationalization deadline (days)">
+            <Field label="Close deadline (days)">
               <input
                 type="number"
                 min={1}
                 max={365}
-                value={opDeadlineDays}
-                onChange={(e) => setOpDeadlineDays(Number(e.target.value))}
+                value={closeDays}
+                onChange={(e) => setCloseDays(Number(e.target.value))}
                 data-testid="create-op-deadline-days"
               />
             </Field>
@@ -196,48 +215,21 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
               data-testid="create-deadline-days"
             />
           </Field>
-          <Field label="Stake cap per invitee (SUI)">
-            <input
-              type="number"
-              min={0.1}
-              step={0.1}
-              value={stakeCapSui}
-              onChange={(e) => setStakeCapSui(Number(e.target.value))}
-            />
-          </Field>
         </div>
-
-        <fieldset className="invitee-fieldset">
-          <legend>Invitees</legend>
-          <div className="invitee-grid">
-            {others
-              .filter((u) => u.id !== subjectA && u.id !== subjectB)
-              .map((u) => {
-                const checked = invitees.has(u.id);
-                return (
-                  <label key={u.id} className="invitee-chip">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      data-testid={`create-invitee-${u.handle}`}
-                      onChange={(e) => {
-                        const next = new Set(invitees);
-                        if (e.target.checked) next.add(u.id);
-                        else next.delete(u.id);
-                        setInvitees(next);
-                      }}
-                    />
-                    {u.displayName}
-                  </label>
-                );
-              })}
-          </div>
-        </fieldset>
 
         {deadlineOrderError ? (
           <p className="form-error" data-testid="create-deadline-error">
             {deadlineOrderError}
           </p>
+        ) : null}
+        {parsedSubjectA.ok || subjectA.trim() === "" ? null : (
+          <p className="form-error">Subject A must be a Sui address.</p>
+        )}
+        {parsedSubjectB.ok || subjectB.trim() === "" ? null : (
+          <p className="form-error">Subject B must be a Sui address.</p>
+        )}
+        {account === null ? (
+          <p className="form-error">Connect a Sui wallet to create a market.</p>
         ) : null}
         {err ? <p className="form-error">{err}</p> : null}
 
@@ -255,7 +247,7 @@ export function CreateMarket({ state, setRoute }: Props): JSX.Element {
             disabled={!canSubmit}
             data-testid="create-submit"
           >
-            Create draft
+            {submitting ? "Creating..." : "Create market"}
           </button>
         </div>
       </form>

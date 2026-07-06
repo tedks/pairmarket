@@ -8,23 +8,17 @@ import {
   useWallets,
 } from "@mysten/dapp-kit-react";
 import type { CustodyState } from "@pairmarket/core";
-import {
-  setPrototypeViewer,
-  signInWithTwitter,
-  signOut,
-} from "../mock/store.ts";
+import { signOut } from "../state/store.ts";
 import { WALLET_STORAGE_KEY } from "../dapp-kit.ts";
 import { formatAddress } from "../format.ts";
 import type { UserProfile } from "../types.ts";
 
 type HeaderProps = {
   readonly viewer: UserProfile;
-  readonly users: readonly UserProfile[];
   readonly custody: CustodyState;
 };
 
-export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
-  const [signingIn, setSigningIn] = useState(false);
+export function Header({ viewer, custody }: HeaderProps): JSX.Element {
   const [selectedWalletName, setSelectedWalletName] = useState<string | null>(
     null,
   );
@@ -63,10 +57,11 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
         <span className="brand-tag">prototype</span>
       </div>
       <div className="header-spacer" />
-      <ViewerSwitcher viewer={viewer} users={users} />
+      <span className="viewer-address" title={viewer.address}>
+        {formatAddress(viewer.address)}
+      </span>
       <CustodyPill
         custody={custody}
-        signingIn={signingIn}
         accountAddress={account?.address}
         walletName={wallet?.name}
         wallets={wallets.map((w) => ({ name: w.name }))}
@@ -96,14 +91,6 @@ export function Header({ viewer, users, custody }: HeaderProps): JSX.Element {
             }
           } catch (error) {
             setWalletError(walletConnectErrorMessage(error));
-          }
-        }}
-        onSignIn={async () => {
-          setSigningIn(true);
-          try {
-            await signInWithTwitter();
-          } finally {
-            setSigningIn(false);
           }
         }}
         onSignOut={async () => {
@@ -155,41 +142,8 @@ function walletConnectErrorMessage(error: unknown): string {
   return "Wallet connection failed";
 }
 
-function ViewerSwitcher({
-  viewer,
-  users,
-}: {
-  readonly viewer: UserProfile;
-  readonly users: readonly UserProfile[];
-}): JSX.Element {
-  return (
-    <label
-      className="viewer-switcher"
-      title="Dev-only: change which seeded identity is the active viewer"
-    >
-      <span className="viewer-switcher-label">viewing as</span>
-      <select
-        value={viewer.id}
-        onChange={(e) => {
-          const nextId = e.target.value;
-          const next = users.find((u) => u.id === nextId);
-          if (next) setPrototypeViewer(next.id);
-        }}
-        data-testid="viewer-switcher"
-      >
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>
-            {u.displayName} · @{u.handle}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function CustodyPill({
   custody,
-  signingIn,
   accountAddress,
   walletName,
   wallets,
@@ -198,11 +152,9 @@ function CustodyPill({
   connectingWallet,
   onSelectWallet,
   onConnectWallet,
-  onSignIn,
   onSignOut,
 }: {
   readonly custody: CustodyState;
-  readonly signingIn: boolean;
   readonly accountAddress: string | undefined;
   readonly walletName: string | undefined;
   readonly wallets: readonly {
@@ -213,7 +165,6 @@ function CustodyPill({
   readonly connectingWallet: boolean;
   readonly onSelectWallet: (name: string) => void;
   readonly onConnectWallet: () => Promise<void>;
-  readonly onSignIn: () => void;
   readonly onSignOut: () => Promise<void>;
 }): JSX.Element {
   if (custody.kind === "anonymous") {
@@ -252,11 +203,10 @@ function CustodyPill({
         <button
           type="button"
           className="custody-pill custody-pill-secondary"
-          onClick={onSignIn}
-          disabled={signingIn}
+          disabled
           data-testid="sign-in-twitter"
         >
-          {signingIn ? "signing in…" : "Twitter custody"}
+          Twitter custody coming later
         </button>
         {walletError ? (
           <span className="auth-error" role="alert" data-testid="wallet-error">

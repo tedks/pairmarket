@@ -1,7 +1,8 @@
 import type { JSX } from "react";
 import { useEffect, useMemo, useState } from "react";
+import type { Transaction } from "@mysten/sui/transactions";
 import type { MarketId, WagerOutcome } from "@pairmarket/core";
-import { parseMistAmount } from "@pairmarket/core";
+import { parseMistAmount, tryParseSuiAddress } from "@pairmarket/core";
 import type { Route } from "../App.tsx";
 import type { AppState, Market, Subject } from "../types.ts";
 import {
@@ -12,16 +13,24 @@ import {
   formatDuration,
 } from "../format.ts";
 import {
-  acceptInvite,
-  claimPayout,
-  consentAsSubject,
   payoutPool,
-  placeWager,
   sharesByOutcome,
-  submitAttestation,
   viewerIsMember,
-} from "../mock/intents.ts";
-import { setState } from "../mock/store.ts";
+} from "../market-selectors.ts";
+import {
+  pairmarketMoveConfig,
+  type PairmarketMoveConfig,
+} from "../sui/config.ts";
+import {
+  buildClaimTransaction,
+  buildConsentTransaction,
+  buildFinalizeTransaction,
+  buildMintInviteTransaction,
+  buildPlaceTransaction,
+  buildRefundTransaction,
+  buildSubmitAttestationTransaction,
+} from "../sui/market.ts";
+import { useExecuteSuiTransaction } from "../sui/execute.ts";
 
 // Suggested wager amount; clamped down to the viewer's remaining invite cap.
 const DEFAULT_WAGER_MIST = 500_000_000n;
@@ -30,13 +39,31 @@ type Props = {
   readonly state: AppState;
   readonly marketId: MarketId;
   readonly setRoute: (r: Route) => void;
+  readonly refresh: () => void;
 };
+
+type RunMarketTx = (transaction: Transaction) => void;
 
 export function MarketDetail({
   state,
   marketId,
   setRoute,
+  refresh,
 }: Props): JSX.Element {
+  const config = pairmarketMoveConfig();
+  const execute = useExecuteSuiTransaction();
+  const [actionError, setActionError] = useState<string | undefined>(undefined);
+  const runMarketTx: RunMarketTx = (transaction) => {
+    setActionError(undefined);
+    void (async () => {
+      try {
+        await execute(transaction);
+        refresh();
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+  };
   const market = state.markets.get(marketId);
   if (!market) {
     return (
@@ -98,6 +125,7 @@ export function MarketDetail({
         {formatDuration(state.nowMs, market.createdAtMs)} · deadline{" "}
         {formatDuration(state.nowMs, market.resolutionDeadlineMs)}
       </p>
+      {actionError ? <p className="form-error">{actionError}</p> : null}
 
       <div className="market-detail-grid">
         <Card title="Terms">
@@ -116,7 +144,12 @@ export function MarketDetail({
           <KeyVal k="Prompt" v={market.content.prompt} multiline />
         </Card>
 
-        <SubjectsCard market={market} state={state} />
+        <SubjectsCard
+          market={market}
+          state={state}
+          config={config}
+          runMarketTx={runMarketTx}
+        />
 
         <Card title="Pool">
           <KeyVal k="Total escrowed" v={formatSui(payoutPool(market))} />
@@ -130,10 +163,30 @@ export function MarketDetail({
           ) : null}
         </Card>
 
-        <InvitesCard market={market} state={state} />
-        <PositionsCard market={market} state={state} />
-        <ActionsCard market={market} state={state} />
-        <AttestationCard market={market} state={state} />
+        <InvitesCard
+          market={market}
+          state={state}
+          config={config}
+          runMarketTx={runMarketTx}
+        />
+        <PositionsCard
+          market={market}
+          state={state}
+          config={config}
+          runMarketTx={runMarketTx}
+        />
+        <ActionsCard
+          market={market}
+          state={state}
+          config={config}
+          runMarketTx={runMarketTx}
+        />
+        <AttestationCard
+          market={market}
+          state={state}
+          config={config}
+          runMarketTx={runMarketTx}
+        />
       </div>
     </section>
   );
@@ -174,14 +227,25 @@ function KeyVal({
 function SubjectsCard({
   market,
   state,
+  config,
+  runMarketTx,
 }: {
   readonly market: Market;
   readonly state: AppState;
+  readonly config: PairmarketMoveConfig | undefined;
+  readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
   return (
     <Card title="Subjects">
       {market.subjects.map((s) => (
-        <SubjectRow key={s.role} state={state} market={market} subject={s} />
+        <SubjectRow
+          key={s.role}
+          state={state}
+          market={market}
+          subject={s}
+          config={config}
+          runMarketTx={runMarketTx}
+        />
       ))}
     </Card>
   );
@@ -191,10 +255,14 @@ function SubjectRow({
   state,
   market,
   subject,
+  config,
+  runMarketTx,
 }: {
   readonly state: AppState;
   readonly market: Market;
   readonly subject: Subject;
+  readonly config: PairmarketMoveConfig | undefined;
+  readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
   const profile = state.users.get(subject.user);
   const isMe = subject.user === state.viewer;
@@ -217,25 +285,14 @@ function SubjectRow({
               type="button"
               className="btn btn-primary"
               data-testid="consent-accept"
-              onClick={() =>
-                setState((s) =>
-                  consentAsSubject(s, market.id, subject.role, "accept"),
-                )
-              }
+              disabled={config === undefined}
+              onClick={() => {
+                if (config !== undefined) {
+                  runMarketTx(buildConsentTransaction(config, market.id));
+                }
+              }}
             >
               Accept
-            </button>
-            <button
-              type="button"
-              className="btn"
-              data-testid="consent-decline"
-              onClick={() =>
-                setState((s) =>
-                  consentAsSubject(s, market.id, subject.role, "decline"),
-                )
-              }
-            >
-              Decline
             </button>
           </div>
         ) : null}
@@ -252,11 +309,16 @@ function ConsentChip({ subject }: { readonly subject: Subject }): JSX.Element {
 function InvitesCard({
   market,
   state,
+  config,
+  runMarketTx,
 }: {
   readonly market: Market;
   readonly state: AppState;
+  readonly config: PairmarketMoveConfig | undefined;
+  readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
   const viewerInvite = market.invites.find((i) => i.invitee === state.viewer);
+  const viewerIsCreator = market.creator === state.viewer;
   return (
     <Card title="Invites">
       {market.invites.length === 0 ? (
@@ -285,28 +347,105 @@ function InvitesCard({
           })}
         </ul>
       )}
-      {viewerInvite && !viewerInvite.accepted ? (
-        <button
-          type="button"
-          className="btn btn-primary"
-          data-testid="accept-invite"
-          onClick={() =>
-            setState((s) => acceptInvite(s, market.id, viewerInvite.id))
-          }
-        >
-          Accept your invite (cap {formatSui(viewerInvite.maxStakeMist)})
-        </button>
+      {viewerInvite ? (
+        <p className="card-empty">
+          You hold an invite ticket with cap{" "}
+          {formatSui(viewerInvite.maxStakeMist)}.
+        </p>
+      ) : null}
+      {viewerIsCreator && market.phase === "trading" ? (
+        <MintInviteForm
+          market={market}
+          config={config}
+          runMarketTx={runMarketTx}
+        />
       ) : null}
     </Card>
+  );
+}
+
+function MintInviteForm({
+  market,
+  config,
+  runMarketTx,
+}: {
+  readonly market: Market;
+  readonly config: PairmarketMoveConfig | undefined;
+  readonly runMarketTx: RunMarketTx;
+}): JSX.Element {
+  const [grantee, setGrantee] = useState("");
+  const [capSui, setCapSui] = useState("1");
+  const parsedGrantee = tryParseSuiAddress(grantee.trim());
+  const capMist = useMemo(() => {
+    const n = Number(capSui);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return parseMistAmount(BigInt(Math.round(n * 1_000_000_000)));
+  }, [capSui]);
+
+  const canMint =
+    config !== undefined && parsedGrantee.ok && capMist !== undefined;
+
+  return (
+    <form
+      className="wager-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!canMint) return;
+        runMarketTx(
+          buildMintInviteTransaction(
+            config,
+            market.id,
+            parsedGrantee.value,
+            capMist,
+            market.closeMs,
+          ),
+        );
+        setGrantee("");
+      }}
+    >
+      <label className="stake-input">
+        <span>Invite address</span>
+        <input
+          type="text"
+          value={grantee}
+          onChange={(e) => setGrantee(e.target.value)}
+          data-testid="mint-invite-address"
+          placeholder="0x..."
+        />
+      </label>
+      <label className="stake-input">
+        <span>Cap (SUI)</span>
+        <input
+          type="number"
+          min="0"
+          step="0.000000001"
+          value={capSui}
+          onChange={(e) => setCapSui(e.target.value)}
+          data-testid="mint-invite-cap"
+        />
+      </label>
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={!canMint}
+        data-testid="mint-invite-submit"
+      >
+        Mint invite
+      </button>
+    </form>
   );
 }
 
 function PositionsCard({
   market,
   state,
+  config,
+  runMarketTx,
 }: {
   readonly market: Market;
   readonly state: AppState;
+  readonly config: PairmarketMoveConfig | undefined;
+  readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
   return (
     <Card title="Positions">
@@ -352,11 +491,37 @@ function PositionsCard({
                     type="button"
                     className="btn btn-primary btn-sm"
                     data-testid="claim-payout"
-                    onClick={() =>
-                      setState((s) => claimPayout(s, market.id, p.id))
-                    }
+                    disabled={config === undefined}
+                    onClick={() => {
+                      if (config !== undefined) {
+                        runMarketTx(
+                          buildClaimTransaction(config, market.id, p.id),
+                        );
+                      }
+                    }}
                   >
                     Claim
+                  </button>
+                ) : null}
+                {(market.phase === "expired" ||
+                  market.phase === "cancelled" ||
+                  market.phase === "invalid-refund") &&
+                !p.claimed &&
+                p.owner === state.viewer ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    data-testid="refund-position"
+                    disabled={config === undefined}
+                    onClick={() => {
+                      if (config !== undefined) {
+                        runMarketTx(
+                          buildRefundTransaction(config, market.id, p.id),
+                        );
+                      }
+                    }}
+                  >
+                    Refund
                   </button>
                 ) : null}
               </li>
@@ -371,9 +536,13 @@ function PositionsCard({
 function ActionsCard({
   market,
   state,
+  config,
+  runMarketTx,
 }: {
   readonly market: Market;
   readonly state: AppState;
+  readonly config: PairmarketMoveConfig | undefined;
+  readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
   const accepted = market.invites.find(
     (i) => i.invitee === state.viewer && i.accepted,
@@ -388,13 +557,28 @@ function ActionsCard({
         ? accepted.maxStakeMist - alreadyStaked
         : 0n;
   const canWager = market.phase === "trading" && remainingStakeMist > 0n;
+  const canFinalize =
+    market.phase === "challenge-window-open" ||
+    market.phase === "locked" ||
+    market.phase === "attestation-pending";
   return (
     <Card title="Place wager">
       {canWager ? (
         <WagerForm
           maxStakeMist={remainingStakeMist}
+          disabled={config === undefined}
           onSubmit={(outcome, amountMist) =>
-            setState((s) => placeWager(s, market.id, outcome, amountMist))
+            config !== undefined
+              ? runMarketTx(
+                  buildPlaceTransaction(
+                    config,
+                    market.id,
+                    accepted!.id,
+                    outcome,
+                    amountMist,
+                  ),
+                )
+              : undefined
           }
         />
       ) : (
@@ -406,15 +590,32 @@ function ActionsCard({
               : "Stake cap reached for this invite."}
         </p>
       )}
+      {canFinalize ? (
+        <button
+          type="button"
+          className="btn btn-primary"
+          data-testid="finalize-market"
+          disabled={config === undefined}
+          onClick={() => {
+            if (config !== undefined) {
+              runMarketTx(buildFinalizeTransaction(config, market.id));
+            }
+          }}
+        >
+          Finalize
+        </button>
+      ) : null}
     </Card>
   );
 }
 
 function WagerForm({
   maxStakeMist,
+  disabled,
   onSubmit,
 }: {
   readonly maxStakeMist: bigint;
+  readonly disabled?: boolean;
   readonly onSubmit: (
     outcome: WagerOutcome,
     amountMist: ReturnType<typeof parseMistAmount>,
@@ -497,7 +698,7 @@ function WagerForm({
       <button
         type="submit"
         className="btn btn-primary"
-        disabled={parsed === undefined}
+        disabled={disabled || parsed === undefined}
         data-testid="wager-submit"
       >
         Place wager
@@ -522,9 +723,13 @@ function formatMistInput(mist: bigint): string {
 function AttestationCard({
   market,
   state,
+  config,
+  runMarketTx,
 }: {
   readonly market: Market;
   readonly state: AppState;
+  readonly config: PairmarketMoveConfig | undefined;
+  readonly runMarketTx: RunMarketTx;
 }): JSX.Element {
   const viewerSubject = market.subjects.find((s) => s.user === state.viewer);
   const viewerAttested = market.attestations.some(
@@ -559,9 +764,14 @@ function AttestationCard({
             type="button"
             className="btn btn-primary"
             data-testid="attest-yes"
-            onClick={() =>
-              setState((s) => submitAttestation(s, market.id, "yes"))
-            }
+            disabled={config === undefined}
+            onClick={() => {
+              if (config !== undefined) {
+                runMarketTx(
+                  buildSubmitAttestationTransaction(config, market.id, "yes"),
+                );
+              }
+            }}
           >
             Attest YES
           </button>
@@ -569,9 +779,14 @@ function AttestationCard({
             type="button"
             className="btn"
             data-testid="attest-no"
-            onClick={() =>
-              setState((s) => submitAttestation(s, market.id, "no"))
-            }
+            disabled={config === undefined}
+            onClick={() => {
+              if (config !== undefined) {
+                runMarketTx(
+                  buildSubmitAttestationTransaction(config, market.id, "no"),
+                );
+              }
+            }}
           >
             Attest NO
           </button>
@@ -579,9 +794,18 @@ function AttestationCard({
             type="button"
             className="btn btn-warn"
             data-testid="attest-invalid"
-            onClick={() =>
-              setState((s) => submitAttestation(s, market.id, "invalid"))
-            }
+            disabled={config === undefined}
+            onClick={() => {
+              if (config !== undefined) {
+                runMarketTx(
+                  buildSubmitAttestationTransaction(
+                    config,
+                    market.id,
+                    "invalid",
+                  ),
+                );
+              }
+            }}
           >
             Attest INVALID
           </button>

@@ -9,9 +9,12 @@ CLIENT_DIR="$STATE_DIR/sui-client"
 CLIENT_CONFIG="$CLIENT_DIR/client.yaml"
 ADDRESS_JSON="$CLIENT_DIR/deployer-address.json"
 LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
+WEB_ENV_FILE="$PROJECT_ROOT/apps/web/.env.local"
 PUBLISH_JSON="$STATE_DIR/publish-output.json"
 PUBFILE="$STATE_DIR/Published.localnet.toml"
 PACKAGE_ID_FILE="$STATE_DIR/package-id.txt"
+CONFIG_ID_FILE="$STATE_DIR/config-id.txt"
+ADMIN_CAP_ID_FILE="$STATE_DIR/admin-cap-id.txt"
 PUBLISH_WORKDIR="$STATE_DIR/publish-workdir"
 PUBLISH_GAS_BUDGET="${PAIRMARKET_PUBLISH_GAS_BUDGET:-1000000000}"
 
@@ -151,6 +154,7 @@ json_field() {
   local file="$1"
   local expr="$2"
 
+  # shellcheck disable=SC2016
   node -e '
     const fs = require("node:fs");
     const file = process.argv[1];
@@ -174,6 +178,7 @@ deployer_address() {
 }
 
 configure_client_local_env() {
+  # shellcheck disable=SC2016
   node -e '
     const fs = require("node:fs");
     const file = process.argv[1];
@@ -201,6 +206,7 @@ ensure_client() {
   if [[ ! -f "$ADDRESS_JSON" ]]; then
     log "Creating isolated local deployer key"
     rm -f "$CLIENT_DIR/deployer-address.raw"
+    # shellcheck disable=SC2016
     client -y new-address ed25519 pairmarket-deployer --json | node -e '
       const fs = require("node:fs");
       let raw = "";
@@ -228,7 +234,7 @@ fund_deployer() {
   address="$(deployer_address)"
   log "Funding deployer $address from $SUI_FAUCET_URL"
 
-  for _ in $(seq 1 8); do
+  for _ in $(seq 1 30); do
     if client faucet --address "$address" --url "$SUI_FAUCET_URL" >/dev/null 2>&1; then
       return 0
     fi
@@ -271,19 +277,34 @@ publish_contracts() {
   fi
 
   local package_id
+  local config_id
+  local admin_cap_id
   package_id="$(json_field "$PUBLISH_JSON" 'data.objectChanges.find((change) => change.type === "published")?.packageId')"
+  config_id="$(json_field "$PUBLISH_JSON" 'data.objectChanges.find((change) => change.type === "created" && change.objectType?.endsWith("::market::Config") && change.owner && typeof change.owner === "object" && "Shared" in change.owner)?.objectId')"
+  admin_cap_id="$(json_field "$PUBLISH_JSON" 'data.objectChanges.find((change) => change.type === "created" && change.objectType?.endsWith("::market::AdminCap"))?.objectId')"
   printf '%s\n' "$package_id" > "$PACKAGE_ID_FILE"
+  printf '%s\n' "$config_id" > "$CONFIG_ID_FILE"
+  printf '%s\n' "$admin_cap_id" > "$ADMIN_CAP_ID_FILE"
 
   write_env_file
   log "Published pairmarket package: $package_id"
+  log "Published pairmarket config: $config_id"
 }
 
 write_env_file() {
   load_sui_env
 
   local package_id=""
+  local config_id=""
+  local admin_cap_id=""
   if [[ -f "$PACKAGE_ID_FILE" ]]; then
     package_id="$(cat "$PACKAGE_ID_FILE")"
+  fi
+  if [[ -f "$CONFIG_ID_FILE" ]]; then
+    config_id="$(cat "$CONFIG_ID_FILE")"
+  fi
+  if [[ -f "$ADMIN_CAP_ID_FILE" ]]; then
+    admin_cap_id="$(cat "$ADMIN_CAP_ID_FILE")"
   fi
 
   cat > "$LOCAL_ENV_FILE" <<EOF
@@ -294,8 +315,21 @@ PAIRMARKET_SUI_GRAPHQL_URL=$SUI_GRAPHQL_URL
 PAIRMARKET_SUI_CLIENT_CONFIG=$CLIENT_CONFIG
 PAIRMARKET_SUI_DEPLOYER_ADDRESS=$(deployer_address 2>/dev/null || true)
 PAIRMARKET_MOVE_PACKAGE_ID=$package_id
+PAIRMARKET_MOVE_CONFIG_ID=$config_id
+PAIRMARKET_MOVE_ADMIN_CAP_ID=$admin_cap_id
 PAIRMARKET_WALRUS_MODE=not-yet-local
 PAIRMARKET_SEAL_MODE=not-yet-local
+EOF
+
+  cat > "$WEB_ENV_FILE" <<EOF
+VITE_PAIRMARKET_NETWORK=localnet
+VITE_PAIRMARKET_SUI_RPC_URL=/sui-rpc
+VITE_PAIRMARKET_SUI_FAUCET_URL=/sui-faucet
+VITE_PAIRMARKET_DEVSTACK_RPC_TARGET=$SUI_RPC_URL
+VITE_PAIRMARKET_DEVSTACK_FAUCET_TARGET=$SUI_FAUCET_URL
+VITE_PAIRMARKET_MOVE_PACKAGE_ID=$package_id
+VITE_PAIRMARKET_MOVE_CONFIG_ID=$config_id
+VITE_PAIRMARKET_ENABLE_BURNER=0
 EOF
 }
 
@@ -313,11 +347,21 @@ show_pairmarket_status() {
   else
     printf 'pairmarket_package_id=not_deployed\n'
   fi
+  if [[ -f "$CONFIG_ID_FILE" ]]; then
+    printf 'pairmarket_config_id=%s\n' "$(cat "$CONFIG_ID_FILE")"
+  else
+    printf 'pairmarket_config_id=not_deployed\n'
+  fi
+  if [[ -f "$WEB_ENV_FILE" ]]; then
+    printf 'pairmarket_web_env_file=%s\n' "$WEB_ENV_FILE"
+  else
+    printf 'pairmarket_web_env_file=not_written\n'
+  fi
 }
 
 reset_pairmarket_state() {
   log "Removing pairmarket state from $STATE_DIR"
-  rm -rf "$CLIENT_DIR" "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$PUBLISH_WORKDIR" "$LOCAL_ENV_FILE"
+  rm -rf "$CLIENT_DIR" "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$PUBLISH_WORKDIR" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE"
 }
 
 case "${1:-}" in

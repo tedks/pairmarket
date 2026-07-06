@@ -11,7 +11,8 @@ This repo owns only the pairmarket layer:
 - funding that deployer from the local faucet,
 - writing `.devstack/pairmarket-local.env`,
 - publishing `contracts/pairmarket` when the localnet runtime is compatible,
-- exporting the resulting Move package ID for app and integration tests.
+- exporting the resulting Move package and shared Config IDs for app and
+  integration tests.
 
 ## Upstream Contract
 
@@ -57,7 +58,8 @@ nix develop --command pnpm devstack:down
 ```
 
 `devstack:up` starts upstream Sui Localnet, creates and funds a pairmarket
-deployer, and writes `.devstack/pairmarket-local.env`.
+deployer, and writes `.devstack/pairmarket-local.env` plus
+`apps/web/.env.local`.
 
 The generated env file contains pairmarket-prefixed app configuration:
 
@@ -69,8 +71,24 @@ PAIRMARKET_SUI_GRAPHQL_URL=http://127.0.0.1:9125/graphql
 PAIRMARKET_SUI_CLIENT_CONFIG=/absolute/path/to/.devstack/sui-client/client.yaml
 PAIRMARKET_SUI_DEPLOYER_ADDRESS=...
 PAIRMARKET_MOVE_PACKAGE_ID=...
+PAIRMARKET_MOVE_CONFIG_ID=...
+PAIRMARKET_MOVE_ADMIN_CAP_ID=...
 PAIRMARKET_WALRUS_MODE=not-yet-local
 PAIRMARKET_SEAL_MODE=not-yet-local
+```
+
+The generated web env points browser RPC/faucet traffic at Vite proxy paths so
+remote browsers can use an app served from another host:
+
+```bash
+VITE_PAIRMARKET_NETWORK=localnet
+VITE_PAIRMARKET_SUI_RPC_URL=/sui-rpc
+VITE_PAIRMARKET_SUI_FAUCET_URL=/sui-faucet
+VITE_PAIRMARKET_DEVSTACK_RPC_TARGET=http://127.0.0.1:9000
+VITE_PAIRMARKET_DEVSTACK_FAUCET_TARGET=http://127.0.0.1:9123/gas
+VITE_PAIRMARKET_MOVE_PACKAGE_ID=...
+VITE_PAIRMARKET_MOVE_CONFIG_ID=...
+VITE_PAIRMARKET_ENABLE_BURNER=0
 ```
 
 Use `devstack:reset` when you want a clean chain, deployer, and package
@@ -103,26 +121,33 @@ On success, the wrapper writes:
 
 ```text
 .devstack/package-id.txt
+.devstack/config-id.txt
+.devstack/admin-cap-id.txt
 .devstack/Published.localnet.toml
 .devstack/publish-output.json
 ```
 
-and updates `PAIRMARKET_MOVE_PACKAGE_ID` in
-`.devstack/pairmarket-local.env`.
+and updates the Move IDs in `.devstack/pairmarket-local.env` and
+`apps/web/.env.local`.
 
 ## Current Limits
 
-The canonical repo toolchain is Sui `mainnet-v1.73.2`. The currently available
-`sui-devstack/sui-localnet:1.67.3-r1` image is useful for wallet/client/RPC
-smoke tests, but it is not a Sui 1.73-compatible publish target for the current
-pairmarket package. Until `pm-local-devstack-sui-173-runtime` lands, use:
+The canonical repo toolchain is Sui `mainnet-v1.73.2`. Pairmarket publish
+requires an upstream `sui-devstack` image built from the same Sui tag, such as
+`sui-devstack/sui-localnet:1.73.2-r1`. If your upstream checkout still points at
+`1.67.3-r1`, `devstack:deploy` is expected to fail package verification.
+
+Use:
 
 - `nix develop --command pnpm verify` for canonical package build and Move unit
   tests,
 - `nix develop --command pnpm devstack:up` for live local RPC/faucet/client
   integration,
-- `nix develop --command pnpm devstack:deploy` only against a localnet runtime
-  compatible with Sui `mainnet-v1.73.2`.
+- `nix develop --command pnpm devstack:deploy` against a Sui
+  `mainnet-v1.73.2` localnet runtime before exercising the web app.
+- `nix develop --command pnpm test:localnet` after deploy for the generated-key
+  wallet integration test that creates, consents, invites, wagers, attests,
+  finalizes, and claims real localnet objects.
 
 Walrus and SEAL are not local in this pairmarket wrapper yet. The repo has
 typed IDs, privacy envelopes, and ADRs for their boundaries, but no Walrus
