@@ -8,8 +8,8 @@ type: feature
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-07-06T18:24:17-00:00
 references: []
 log_events:
@@ -30,3 +30,9 @@ log_events:
     Playwright wallet adapter, and added a generated-key localnet integration journey
     covering create/consent/invite/wager/attest/finalize/claim. Validation passed:
     pnpm verify, pnpm test:localnet, script shellcheck.'
+- time: 2026-07-06T20:31:45-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Implemented in PR #16: removed mock seeded markets/viewer switching, wired
+    localnet self-custody wallet flow, kept Twitter custody disabled, and added generated-key
+    localnet integration coverage.'
