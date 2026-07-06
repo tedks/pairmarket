@@ -1,0 +1,19 @@
+id: pm-web-browser-localnet-journey
+title: Exercise funded browser localnet market journey
+desc: The PR adds generated-key wallet connect coverage and a Node localnet full journey.
+  Add an opt-in Playwright localnet journey that funds the generated browser wallet
+  and drives create/consent/invite/wager actions through the UI against a deployed
+  localnet package.
+type: task
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-06T20:12:58-00:00
+references: []
+log_events:
+- time: 2026-07-06T20:12:58-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
