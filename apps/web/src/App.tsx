@@ -7,6 +7,7 @@ import { MarketList } from "./components/MarketList.tsx";
 import { MarketDetail } from "./components/MarketDetail.tsx";
 import { CreateMarket } from "./components/CreateMarket.tsx";
 import { AccountPanel } from "./components/AccountPanel.tsx";
+import { SocialGraph } from "./components/SocialGraph.tsx";
 import { SelfCustodyBridge } from "./components/SelfCustodyBridge.tsx";
 import { useAppState, useCustody } from "./state/store.ts";
 import { useChainAppState } from "./sui/state.ts";
@@ -14,6 +15,7 @@ import { useChainAppState } from "./sui/state.ts";
 export type Route =
   | { readonly kind: "markets"; readonly filter: "all" | "needs-you" }
   | { readonly kind: "market"; readonly id: MarketId }
+  | { readonly kind: "social" }
   | { readonly kind: "new" }
   | { readonly kind: "account" };
 
@@ -59,8 +61,14 @@ export function App(): JSX.Element {
               setRoute={setRoute}
               refresh={chain.refresh}
             />
+          ) : route.kind === "social" ? (
+            <SocialGraph state={state} refresh={chain.refresh} />
           ) : route.kind === "new" ? (
-            <CreateMarket setRoute={setRoute} refresh={chain.refresh} />
+            <CreateMarket
+              state={state}
+              setRoute={setRoute}
+              refresh={chain.refresh}
+            />
           ) : (
             <AccountPanel state={state} custody={custody} />
           )}

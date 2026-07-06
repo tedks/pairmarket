@@ -22,6 +22,7 @@
 //   - Outcome validity: YES / NO / INVALID only.
 //   - Fee cap: copied fee_bps <= Config.max_fee_bps at creation.
 
+#[allow(unused_const, unused_mut_parameter)]
 module pairmarket::market {
 
     use std::option::{Self, Option};
@@ -87,11 +88,20 @@ module pairmarket::market {
     const EVerdictAlreadySet: u64 = 30;
     const EChallengerOnWinningSide: u64 = 31;
     const EFeeBpsAboveOneHundredPercent: u64 = 32;
+    const ENotProfileOwner: u64 = 33;
+    const ESameProfile: u64 = 34;
+    const EWrongProfile: u64 = 35;
+    const EBadVisibility: u64 = 36;
+    const EBadHandle: u64 = 37;
 
     /// 100% in basis points. The fee cap can never exceed this regardless
     /// of `Config.max_fee_bps`.
     const BPS_DENOM: u64 = 10_000;
     const MAX_FEE_BPS_ABSOLUTE: u16 = 10_000;
+
+    const VISIBILITY_FRIENDS: u8 = 0;
+    const VISIBILITY_FRIENDS_OF_FRIENDS: u8 = 1;
+    const VISIBILITY_PUBLIC: u8 = 2;
 
     // ---- Configuration objects ----
 
@@ -106,12 +116,36 @@ module pairmarket::market {
     /// Admin authority for emergency cancellation and config mutation.
     public struct AdminCap has key { id: UID }
 
+    // ---- Social graph objects ----
+
+    /// Stable user-facing identity. Wallet addresses are only current
+    /// controllers; markets point at Profile object IDs.
+    public struct Profile has key {
+        id: UID,
+        owner: address,
+        handle: vector<u8>,
+    }
+
+    /// Owned by the target profile's current wallet until accepted.
+    public struct FriendRequest has key {
+        id: UID,
+        requester: ID,
+        target: ID,
+    }
+
+    /// Shared accepted mutual friendship edge.
+    public struct Friendship has key {
+        id: UID,
+        a: ID,
+        b: ID,
+    }
+
     // ---- Market and child objects ----
 
     /// Shared market object parameterized by collateral coin type `T`.
     public struct Market<phantom T> has key {
         id: UID,
-        creator: address,
+        creator: ID,
         // Off-chain content references. Opaque to Move.
         terms_hash: vector<u8>,
         metadata_ref: vector<u8>,
@@ -126,8 +160,8 @@ module pairmarket::market {
         dispute_deadline_ms: u64,
         challenge_opened_ms: Option<u64>,
         // Subjects and consent.
-        subject_a: address,
-        subject_b: address,
+        subject_a: ID,
+        subject_b: ID,
         consent_a: bool,
         consent_b: bool,
         // Attestation round-tracking; matched once both subjects agree.
@@ -136,7 +170,7 @@ module pairmarket::market {
         attestation_round: u32,
         matched_outcome: u8,
         // Dispute and committee.
-        resolver_committee: vector<address>,
+        resolver_committee: vector<ID>,
         committee_verdict: u8,
         // Fees and balances.
         fee_bps: u16,
@@ -156,7 +190,7 @@ module pairmarket::market {
     public struct InviteTicket has key {
         id: UID,
         market_id: ID,
-        grantee: address,
+        grantee: ID,
         max_stake: u64,
         expires_ms: u64,
     }
@@ -165,7 +199,7 @@ module pairmarket::market {
     public struct Position<phantom T> has key {
         id: UID,
         market_id: ID,
-        owner: address,
+        owner: ID,
         outcome: u8,
         stake: u64,
         shares: u64,
@@ -174,32 +208,51 @@ module pairmarket::market {
 
     // ---- Events ----
 
+    public struct ProfileCreated has copy, drop {
+        profile_id: ID,
+        owner: address,
+        handle: vector<u8>,
+    }
+
+    public struct FriendshipRequested has copy, drop {
+        request_id: ID,
+        requester: ID,
+        target: ID,
+    }
+
+    public struct FriendshipAccepted has copy, drop {
+        friendship_id: ID,
+        a: ID,
+        b: ID,
+    }
+
     public struct MarketCreated has copy, drop {
         market_id: ID,
-        creator: address,
-        subject_a: address,
-        subject_b: address,
+        creator: ID,
+        subject_a: ID,
+        subject_b: ID,
+        visibility: u8,
         fee_bps: u16,
         close_ms: u64,
     }
 
     public struct SubjectConsented has copy, drop {
         market_id: ID,
-        subject: address,
+        subject: ID,
     }
 
     public struct MarketOpened has copy, drop { market_id: ID }
 
     public struct InviteMinted has copy, drop {
         market_id: ID,
-        grantee: address,
+        grantee: ID,
         max_stake: u64,
         expires_ms: u64,
     }
 
     public struct PositionOpened has copy, drop {
         market_id: ID,
-        owner: address,
+        owner: ID,
         outcome: u8,
         stake: u64,
         shares: u64,
@@ -209,7 +262,7 @@ module pairmarket::market {
 
     public struct AttestationSubmitted has copy, drop {
         market_id: ID,
-        subject: address,
+        subject: ID,
         outcome: u8,
         round: u32,
     }
@@ -226,7 +279,7 @@ module pairmarket::market {
 
     public struct ChallengeOpened has copy, drop {
         market_id: ID,
-        challenger: address,
+        challenger: ID,
     }
 
     public struct CommitteeVerdict has copy, drop {
@@ -247,13 +300,13 @@ module pairmarket::market {
 
     public struct Claimed has copy, drop {
         market_id: ID,
-        owner: address,
+        owner: ID,
         amount: u64,
     }
 
     public struct Refunded has copy, drop {
         market_id: ID,
-        owner: address,
+        owner: ID,
         amount: u64,
     }
 
@@ -307,22 +360,101 @@ module pairmarket::market {
         config.max_fee_bps = max_fee_bps;
     }
 
+    // ---- Social graph ----
+
+    entry fun create_profile(handle: vector<u8>, ctx: &mut TxContext) {
+        assert!(!vector::is_empty(&handle), EBadHandle);
+        let profile = Profile {
+            id: object::new(ctx),
+            owner: tx_context::sender(ctx),
+            handle,
+        };
+        let profile_id = object::id(&profile);
+        event::emit(ProfileCreated {
+            profile_id,
+            owner: tx_context::sender(ctx),
+            handle: profile.handle,
+        });
+        transfer::share_object(profile);
+    }
+
+    entry fun transfer_profile(profile: &mut Profile, new_owner: address, ctx: &mut TxContext) {
+        assert!(profile.owner == tx_context::sender(ctx), ENotProfileOwner);
+        profile.owner = new_owner;
+    }
+
+    entry fun request_friendship(
+        requester: &Profile,
+        target: &Profile,
+        ctx: &mut TxContext,
+    ) {
+        assert!(profile_owner(requester) == tx_context::sender(ctx), ENotProfileOwner);
+        let requester_id = object::id(requester);
+        let target_id = object::id(target);
+        assert!(requester_id != target_id, ESameProfile);
+
+        let request = FriendRequest {
+            id: object::new(ctx),
+            requester: requester_id,
+            target: target_id,
+        };
+        let request_id = object::id(&request);
+        event::emit(FriendshipRequested {
+            request_id,
+            requester: requester_id,
+            target: target_id,
+        });
+        transfer::transfer(request, profile_owner(target));
+    }
+
+    entry fun accept_friendship(
+        request: FriendRequest,
+        accepter: &Profile,
+        requester: &Profile,
+        ctx: &mut TxContext,
+    ) {
+        assert!(profile_owner(accepter) == tx_context::sender(ctx), ENotProfileOwner);
+        let FriendRequest {
+            id: request_uid,
+            requester: requested_by,
+            target,
+        } = request;
+        assert!(target == object::id(accepter), EWrongProfile);
+        assert!(requested_by == object::id(requester), EWrongProfile);
+        object::delete(request_uid);
+
+        let friendship = Friendship {
+            id: object::new(ctx),
+            a: requested_by,
+            b: target,
+        };
+        let friendship_id = object::id(&friendship);
+        event::emit(FriendshipAccepted {
+            friendship_id,
+            a: requested_by,
+            b: target,
+        });
+        transfer::share_object(friendship);
+    }
+
     // ---- Market creation ----
 
     entry fun create_market<T>(
+        creator_profile: &Profile,
         terms_hash: vector<u8>,
         metadata_ref: vector<u8>,
         subject_ref: vector<u8>,
         seal_policy_id: vector<u8>,
-        subject_a: address,
-        subject_b: address,
+        subject_a_profile: &Profile,
+        subject_b_profile: &Profile,
+        visibility: u8,
         close_ms: u64,
         earliest_attest_ms: u64,
         resolution_deadline_ms: u64,
         challenge_window_ms: u64,
         dispute_deadline_ms: u64,
         fee_bps: u16,
-        resolver_committee: vector<address>,
+        resolver_committee: vector<ID>,
         config: &Config,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -332,6 +464,16 @@ module pairmarket::market {
         // Absolute bound: prevents `fee > gross` even if Config is misconfigured.
         assert!(fee_bps <= MAX_FEE_BPS_ABSOLUTE, EFeeBpsAboveOneHundredPercent);
         assert!(!vector::is_empty(&resolver_committee), ECommitteeEmpty);
+        assert!(
+            visibility == VISIBILITY_FRIENDS ||
+                visibility == VISIBILITY_FRIENDS_OF_FRIENDS ||
+                visibility == VISIBILITY_PUBLIC,
+            EBadVisibility,
+        );
+        assert!(profile_owner(creator_profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let creator = object::id(creator_profile);
+        let subject_a = object::id(subject_a_profile);
+        let subject_b = object::id(subject_b_profile);
         // Subjects must be distinct so the two-subject co-attestation cannot be
         // signed unilaterally by a single party.
         assert!(subject_a != subject_b, ESameSubject);
@@ -353,7 +495,7 @@ module pairmarket::market {
 
         let market = Market<T> {
             id: object::new(ctx),
-            creator: tx_context::sender(ctx),
+            creator,
             terms_hash,
             metadata_ref,
             subject_ref,
@@ -389,9 +531,10 @@ module pairmarket::market {
         let market_id = object::id(&market);
         event::emit(MarketCreated {
             market_id,
-            creator: tx_context::sender(ctx),
+            creator,
             subject_a,
             subject_b,
+            visibility,
             fee_bps,
             close_ms,
         });
@@ -403,13 +546,15 @@ module pairmarket::market {
 
     entry fun record_subject_consent<T>(
         market: &mut Market<T>,
+        profile: &Profile,
         _clock: &Clock,
         ctx: &mut TxContext,
     ) {
         assert!(market.state == STATE_PROPOSED, EWrongState);
-        let sender = tx_context::sender(ctx);
-        let is_a = sender == market.subject_a;
-        let is_b = sender == market.subject_b;
+        assert!(profile_owner(profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let profile_id = object::id(profile);
+        let is_a = profile_id == market.subject_a;
+        let is_b = profile_id == market.subject_b;
         assert!(is_a || is_b, ENotSubject);
 
         if (is_a) {
@@ -420,7 +565,7 @@ module pairmarket::market {
             market.consent_b = true;
         };
 
-        event::emit(SubjectConsented { market_id: object::uid_to_inner(&market.id), subject: sender });
+        event::emit(SubjectConsented { market_id: object::uid_to_inner(&market.id), subject: profile_id });
 
         if (market.consent_a && market.consent_b) {
             market.state = STATE_TRADING;
@@ -432,14 +577,17 @@ module pairmarket::market {
 
     entry fun mint_invite<T>(
         market: &mut Market<T>,
-        grantee: address,
+        creator_profile: &Profile,
+        grantee_profile: &Profile,
         max_stake: u64,
         expires_ms: u64,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
         assert!(market.state == STATE_TRADING, EWrongState);
-        assert!(tx_context::sender(ctx) == market.creator, ENotCreator);
+        assert!(profile_owner(creator_profile) == tx_context::sender(ctx), ENotProfileOwner);
+        assert!(object::id(creator_profile) == market.creator, ENotCreator);
+        let grantee = object::id(grantee_profile);
         let now = clock::timestamp_ms(clock);
         assert!(expires_ms > now, EInviteExpired);
         assert!(expires_ms <= market.close_ms, EInviteExpired);
@@ -459,7 +607,7 @@ module pairmarket::market {
             expires_ms,
         });
 
-        transfer::transfer(invite, grantee);
+        transfer::transfer(invite, profile_owner(grantee_profile));
     }
 
     // ---- Placing a wager ----
@@ -467,6 +615,7 @@ module pairmarket::market {
     entry fun place<T>(
         market: &mut Market<T>,
         invite: InviteTicket,
+        profile: &Profile,
         stake: Coin<T>,
         outcome: u8,
         clock: &Clock,
@@ -476,7 +625,8 @@ module pairmarket::market {
         let now = clock::timestamp_ms(clock);
         assert!(now <= market.close_ms, ECloseDeadlinePassed);
 
-        let sender = tx_context::sender(ctx);
+        assert!(profile_owner(profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let profile_id = object::id(profile);
         let market_id = object::uid_to_inner(&market.id);
 
         let InviteTicket {
@@ -492,7 +642,7 @@ module pairmarket::market {
         // wager actually succeeds — guaranteeing single-use without
         // burning the caller's ticket on a bad input.
         assert!(invite_market_id == market_id, EWrongMarket);
-        assert!(grantee == sender, ENotInvitee);
+        assert!(grantee == profile_id, ENotInvitee);
         assert!(now < expires_ms, EInviteExpired);
 
         assert!(outcome == OUTCOME_YES || outcome == OUTCOME_NO, EUnknownOutcome);
@@ -516,7 +666,7 @@ module pairmarket::market {
         let position = Position<T> {
             id: object::new(ctx),
             market_id,
-            owner: sender,
+            owner: profile_id,
             outcome,
             stake: amount,
             shares: amount,
@@ -525,13 +675,13 @@ module pairmarket::market {
 
         event::emit(PositionOpened {
             market_id,
-            owner: sender,
+            owner: profile_id,
             outcome,
             stake: amount,
             shares: amount,
         });
 
-        transfer::transfer(position, sender);
+        transfer::transfer(position, profile_owner(profile));
     }
 
     // ---- Lifecycle transitions ----
@@ -555,6 +705,7 @@ module pairmarket::market {
 
     entry fun submit_attestation<T>(
         market: &mut Market<T>,
+        profile: &Profile,
         outcome: u8,
         evidence_hash: vector<u8>,
         clock: &Clock,
@@ -579,9 +730,10 @@ module pairmarket::market {
             EUnknownOutcome,
         );
 
-        let sender = tx_context::sender(ctx);
-        let is_a = sender == market.subject_a;
-        let is_b = sender == market.subject_b;
+        assert!(profile_owner(profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let profile_id = object::id(profile);
+        let is_a = profile_id == market.subject_a;
+        let is_b = profile_id == market.subject_b;
         assert!(is_a || is_b, ENotSubject);
 
         if (is_a) {
@@ -597,7 +749,7 @@ module pairmarket::market {
 
         event::emit(AttestationSubmitted {
             market_id: object::uid_to_inner(&market.id),
-            subject: sender,
+            subject: profile_id,
             outcome,
             round: market.attestation_round,
         });
@@ -633,14 +785,16 @@ module pairmarket::market {
     entry fun open_challenge<T>(
         market: &mut Market<T>,
         position: &Position<T>,
+        profile: &Profile,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
         assert!(market.state == STATE_CHALLENGE_WINDOW, EWrongState);
         let market_id = object::uid_to_inner(&market.id);
         assert!(position.market_id == market_id, EWrongMarket);
-        let sender = tx_context::sender(ctx);
-        assert!(position.owner == sender, ENotOwner);
+        assert!(profile_owner(profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let profile_id = object::id(profile);
+        assert!(position.owner == profile_id, ENotOwner);
         // The challenger is contesting the matched outcome, so they cannot
         // hold a position on the side that would otherwise win. Subjects can
         // still challenge if they also hold a losing position.
@@ -651,11 +805,12 @@ module pairmarket::market {
         assert!(now <= opened_ms + market.challenge_window_ms, EChallengeWindowClosed);
 
         market.state = STATE_DISPUTED;
-        event::emit(ChallengeOpened { market_id, challenger: sender });
+        event::emit(ChallengeOpened { market_id, challenger: profile_id });
     }
 
     entry fun submit_committee_verdict<T>(
         market: &mut Market<T>,
+        profile: &Profile,
         outcome: u8,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -669,8 +824,9 @@ module pairmarket::market {
             EUnknownOutcome,
         );
 
-        let sender = tx_context::sender(ctx);
-        assert!(committee_contains(&market.resolver_committee, sender), ENotCommittee);
+        assert!(profile_owner(profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let profile_id = object::id(profile);
+        assert!(committee_contains(&market.resolver_committee, profile_id), ENotCommittee);
 
         let now = clock::timestamp_ms(clock);
         assert!(now <= market.dispute_deadline_ms, EChallengeWindowClosed);
@@ -793,11 +949,13 @@ module pairmarket::market {
     entry fun claim<T>(
         market: &mut Market<T>,
         position: &mut Position<T>,
+        profile: &Profile,
         ctx: &mut TxContext,
     ) {
         assert!(market.state == STATE_SETTLED, EWrongState);
-        let sender = tx_context::sender(ctx);
-        assert!(position.owner == sender, ENotOwner);
+        assert!(profile_owner(profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let profile_id = object::id(profile);
+        assert!(position.owner == profile_id, ENotOwner);
         assert!(position.market_id == object::uid_to_inner(&market.id), EWrongMarket);
         assert!(!position.claimed, EDoubleClaim);
         assert!(position.outcome == market.winning_outcome, ENotWinner);
@@ -817,16 +975,17 @@ module pairmarket::market {
 
         event::emit(Claimed {
             market_id: object::uid_to_inner(&market.id),
-            owner: sender,
+            owner: profile_id,
             amount: payout,
         });
 
-        transfer::public_transfer(payout_coin, sender);
+        transfer::public_transfer(payout_coin, profile_owner(profile));
     }
 
     entry fun refund<T>(
         market: &mut Market<T>,
         position: &mut Position<T>,
+        profile: &Profile,
         ctx: &mut TxContext,
     ) {
         let refundable =
@@ -834,8 +993,9 @@ module pairmarket::market {
             market.state == STATE_EXPIRED;
         assert!(refundable, ENotRefundable);
 
-        let sender = tx_context::sender(ctx);
-        assert!(position.owner == sender, ENotOwner);
+        assert!(profile_owner(profile) == tx_context::sender(ctx), ENotProfileOwner);
+        let profile_id = object::id(profile);
+        assert!(position.owner == profile_id, ENotOwner);
         assert!(position.market_id == object::uid_to_inner(&market.id), EWrongMarket);
         assert!(!position.claimed, EDoubleClaim);
 
@@ -852,11 +1012,11 @@ module pairmarket::market {
 
         event::emit(Refunded {
             market_id: object::uid_to_inner(&market.id),
-            owner: sender,
+            owner: profile_id,
             amount,
         });
 
-        transfer::public_transfer(refund_coin, sender);
+        transfer::public_transfer(refund_coin, profile_owner(profile));
     }
 
     // ---- Admin cancellation ----
@@ -911,7 +1071,11 @@ module pairmarket::market {
         (wide as u64)
     }
 
-    fun committee_contains(committee: &vector<address>, who: address): bool {
+    fun profile_owner(profile: &Profile): address {
+        profile.owner
+    }
+
+    fun committee_contains(committee: &vector<ID>, who: ID): bool {
         let mut i = 0;
         let n = vector::length(committee);
         while (i < n) {
@@ -957,4 +1121,6 @@ module pairmarket::market {
     public fun state_cancelled(): u8 { STATE_CANCELLED }
     #[test_only]
     public fun state_expired(): u8 { STATE_EXPIRED }
+    #[test_only]
+    public fun visibility_friends(): u8 { VISIBILITY_FRIENDS }
 }

@@ -25,6 +25,8 @@ const marketId = parseMarketId("0xabcd");
 const state = {
   viewer,
   users: new Map(),
+  friendships: [],
+  friendRequests: [],
   markets: new Map(),
   intents: [],
   nowMs,
@@ -34,9 +36,18 @@ function market(overrides = {}) {
   return {
     id: marketId,
     creator: other,
+    visibility: "friends",
     subjects: [
-      { role: "subject-a", user: other, consent: { status: "accepted", atMs: nowMs } },
-      { role: "subject-b", user: other, consent: { status: "accepted", atMs: nowMs } },
+      {
+        role: "subject-a",
+        user: other,
+        consent: { status: "accepted", atMs: nowMs },
+      },
+      {
+        role: "subject-b",
+        user: other,
+        consent: { status: "accepted", atMs: nowMs },
+      },
     ],
     operationalization: { kind: "lasts-n-dates", n: 3 },
     closeMs: parseUnixMs(nowMs + 86_400_000),
@@ -123,7 +134,11 @@ assert(
       phase: "proposed",
       subjects: [
         { role: "subject-a", user: viewer, consent: { status: "pending" } },
-        { role: "subject-b", user: other, consent: { status: "accepted", atMs: nowMs } },
+        {
+          role: "subject-b",
+          user: other,
+          consent: { status: "accepted", atMs: nowMs },
+        },
       ],
     }),
   ) === "Consent required",
@@ -136,8 +151,16 @@ assert(
     market({
       phase: "attestation-pending",
       subjects: [
-        { role: "subject-a", user: viewer, consent: { status: "accepted", atMs: nowMs } },
-        { role: "subject-b", user: other, consent: { status: "accepted", atMs: nowMs } },
+        {
+          role: "subject-a",
+          user: viewer,
+          consent: { status: "accepted", atMs: nowMs },
+        },
+        {
+          role: "subject-b",
+          user: other,
+          consent: { status: "accepted", atMs: nowMs },
+        },
       ],
     }),
   ) === "Attest outcome",

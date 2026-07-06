@@ -8,7 +8,7 @@ import {
   phaseLabel,
   formatDuration,
 } from "../format.ts";
-import { payoutPool, viewerIsMember } from "../market-selectors.ts";
+import { payoutPool } from "../market-selectors.ts";
 import { viewerMarketAction } from "../market-actions.ts";
 
 type Props = {
@@ -18,13 +18,13 @@ type Props = {
 };
 
 export function MarketList({ state, filter, setRoute }: Props): JSX.Element {
-  const memberMarkets = [...state.markets.values()]
-    .filter((m) => viewerIsMember(state, m))
-    .sort((a, b) => phaseSortRank(a) - phaseSortRank(b));
+  const visibleMarkets = [...state.markets.values()].sort(
+    (a, b) => phaseSortRank(a) - phaseSortRank(b),
+  );
   const markets =
     filter === "needs-you"
-      ? memberMarkets.filter((m) => viewerMarketAction(state, m))
-      : memberMarkets;
+      ? visibleMarkets.filter((m) => viewerMarketAction(state, m))
+      : visibleMarkets;
 
   return (
     <section className="market-list">
@@ -32,7 +32,7 @@ export function MarketList({ state, filter, setRoute }: Props): JSX.Element {
         <h1>{filter === "needs-you" ? "Needs you" : "Your markets"}</h1>
         <p className="market-list-sub">
           {filter === "needs-you"
-            ? `${markets.length} actionable · ${memberMarkets.length} visible total`
+            ? `${markets.length} actionable · ${visibleMarkets.length} visible total`
             : `${markets.length} visible · private by invitation`}
         </p>
       </div>

@@ -6,14 +6,24 @@ import {
   parseMistAmount,
   parsePositionId,
   parseSuiAddress,
+  parseSuiObjectId,
   parseUnixMs,
   parseUserId,
   type MarketId,
   type MistAmount,
   type SuiAddress,
+  type SuiObjectId,
   type WagerOutcome,
 } from "@pairmarket/core";
-import type { AppState, Market, MarketPhase, UserProfile } from "../types.ts";
+import type {
+  AppState,
+  FriendRequest,
+  Friendship,
+  Market,
+  MarketPhase,
+  UserProfile,
+  VisibilityScope,
+} from "../types.ts";
 import { pairmarketMoveConfig, SUI_COIN_TYPE } from "./config.ts";
 import { loadLocalMarketMetadata } from "./metadata.ts";
 
@@ -27,24 +37,35 @@ type ChainState = {
 type OwnedChainObjects = {
   readonly invites: readonly ChainInvite[];
   readonly positions: readonly ChainPosition[];
+  readonly friendRequests: readonly FriendRequest[];
 };
 
 type ChainMarketCreated = {
   readonly id: MarketId;
+  readonly creator: SuiObjectId;
+  readonly subjectA: SuiObjectId;
+  readonly subjectB: SuiObjectId;
+  readonly visibility: VisibilityScope;
   readonly createdAtMs: number;
+};
+
+type ChainProfile = {
+  readonly id: SuiObjectId;
+  readonly owner: SuiAddress;
+  readonly handle: string;
 };
 
 type ChainInvite = {
   readonly id: string;
   readonly marketId: MarketId;
-  readonly grantee: SuiAddress;
+  readonly grantee: SuiObjectId;
   readonly maxStakeMist: MistAmount;
 };
 
 type ChainPosition = {
   readonly id: string;
   readonly marketId: MarketId;
-  readonly owner: SuiAddress;
+  readonly owner: SuiObjectId;
   readonly outcome: WagerOutcome;
   readonly amountMist: MistAmount;
   readonly claimed: boolean;
@@ -80,44 +101,47 @@ export function useChainAppState(baseState: AppState): ChainState {
 
     void (async () => {
       try {
-        const [marketEvents, owned] = await Promise.all([
+        const [profiles, friendships, marketEvents, owned] = await Promise.all([
+          fetchProfiles(),
+          fetchFriendships(),
           fetchMarketEvents(),
           fetchOwnedObjects(),
         ]);
-        const markets = await fetchMarkets(marketEvents, owned);
+        const viewerProfile = profiles.find((p) =>
+          sameAddress(p.owner, viewerAddress),
+        );
+        const viewer = viewerProfile
+          ? parseUserId(viewerProfile.id)
+          : parseUserId(viewerAddress);
+        const markets = await fetchMarkets(
+          marketEvents,
+          owned,
+          friendships,
+          viewerProfile?.id,
+        );
         if (abort.signal.aborted) return;
 
         const users = new Map(baseState.users);
         users.set(parseUserId(viewerAddress), profileForAddress(viewerAddress));
+        for (const profile of profiles) {
+          users.set(parseUserId(profile.id), profileForChainProfile(profile));
+        }
         for (const market of markets.values()) {
-          users.set(
-            market.creator,
-            profileForAddress(parseSuiAddress(market.creator)),
-          );
-          for (const subject of market.subjects) {
-            users.set(
-              subject.user,
-              profileForAddress(parseSuiAddress(subject.user)),
-            );
-          }
-          for (const invite of market.invites) {
-            users.set(
-              invite.invitee,
-              profileForAddress(parseSuiAddress(invite.invitee)),
-            );
-          }
-          for (const position of market.positions) {
-            users.set(
-              position.owner,
-              profileForAddress(parseSuiAddress(position.owner)),
-            );
-          }
+          ensureProfile(users, market.creator);
+          for (const subject of market.subjects)
+            ensureProfile(users, subject.user);
+          for (const invite of market.invites)
+            ensureProfile(users, invite.invitee);
+          for (const position of market.positions)
+            ensureProfile(users, position.owner);
         }
 
         setState({
           ...baseState,
-          viewer: parseUserId(viewerAddress),
+          viewer,
           users,
+          friendships,
+          friendRequests: owned.friendRequests,
           markets,
           nowMs: parseUnixMs(Date.now()),
         });
@@ -130,6 +154,85 @@ export function useChainAppState(baseState: AppState): ChainState {
         if (!abort.signal.aborted) setLoading(false);
       }
     })();
+
+    async function fetchProfiles(): Promise<readonly ChainProfile[]> {
+      const profileIds: SuiObjectId[] = [];
+      let cursor:
+        | NonNullable<Parameters<typeof client.queryEvents>[0]>["cursor"]
+        | undefined;
+      do {
+        const events = await client.queryEvents({
+          query: {
+            MoveEventType: `${packageId}::market::ProfileCreated`,
+          },
+          cursor,
+          order: "ascending",
+          limit: 100,
+          signal: abort.signal,
+        });
+        for (const event of events.data) {
+          const id = idFromField(event.parsedJson, "profile_id");
+          if (id !== undefined) profileIds.push(parseSuiObjectId(id));
+        }
+        cursor = events.nextCursor;
+        if (!events.hasNextPage) break;
+      } while (cursor !== null && cursor !== undefined);
+
+      if (profileIds.length === 0) return [];
+      const objectPages = await Promise.all(
+        chunks([...new Set(profileIds)], 50).map((ids) =>
+          client.multiGetObjects({
+            ids,
+            options: { showContent: true, showType: true },
+            signal: abort.signal,
+          }),
+        ),
+      );
+
+      const profiles: ChainProfile[] = [];
+      for (const object of objectPages.flat()) {
+        const data = object.data;
+        const fields = moveFields(data?.content);
+        if (!data?.objectId || fields === undefined) continue;
+        if (!data.type?.includes("::market::Profile")) continue;
+        profiles.push({
+          id: parseSuiObjectId(data.objectId),
+          owner: parseSuiAddress(fieldString(fields, "owner")),
+          handle: fieldBytesAsString(fields, "handle"),
+        });
+      }
+      return profiles;
+    }
+
+    async function fetchFriendships(): Promise<readonly Friendship[]> {
+      const friendships: Friendship[] = [];
+      let cursor:
+        | NonNullable<Parameters<typeof client.queryEvents>[0]>["cursor"]
+        | undefined;
+      do {
+        const events = await client.queryEvents({
+          query: {
+            MoveEventType: `${packageId}::market::FriendshipAccepted`,
+          },
+          cursor,
+          order: "ascending",
+          limit: 100,
+          signal: abort.signal,
+        });
+        for (const event of events.data) {
+          const a = idFromField(event.parsedJson, "a");
+          const b = idFromField(event.parsedJson, "b");
+          if (a === undefined || b === undefined) continue;
+          friendships.push({
+            a: parseUserId(parseSuiObjectId(a)),
+            b: parseUserId(parseSuiObjectId(b)),
+          });
+        }
+        cursor = events.nextCursor;
+        if (!events.hasNextPage) break;
+      } while (cursor !== null && cursor !== undefined);
+      return friendships;
+    }
 
     async function fetchMarketEvents(): Promise<readonly ChainMarketCreated[]> {
       const created: ChainMarketCreated[] = [];
@@ -149,8 +252,27 @@ export function useChainAppState(baseState: AppState): ChainState {
         for (const event of events.data) {
           const id = idFromField(event.parsedJson, "market_id");
           if (id === undefined) continue;
+          const creator = idFromField(event.parsedJson, "creator");
+          const subjectA = idFromField(event.parsedJson, "subject_a");
+          const subjectB = idFromField(event.parsedJson, "subject_b");
+          if (
+            creator === undefined ||
+            subjectA === undefined ||
+            subjectB === undefined
+          ) {
+            continue;
+          }
           created.push({
             id: parseMarketId(id),
+            creator: parseSuiObjectId(creator),
+            subjectA: parseSuiObjectId(subjectA),
+            subjectB: parseSuiObjectId(subjectB),
+            visibility: visibilityFromCode(
+              fieldNumber(
+                event.parsedJson as Record<string, unknown>,
+                "visibility",
+              ),
+            ),
             createdAtMs:
               event.timestampMs === null || event.timestampMs === undefined
                 ? Date.now()
@@ -166,6 +288,7 @@ export function useChainAppState(baseState: AppState): ChainState {
     async function fetchOwnedObjects(): Promise<OwnedChainObjects> {
       const invites: ChainInvite[] = [];
       const positions: ChainPosition[] = [];
+      const friendRequests: FriendRequest[] = [];
       let cursor: string | null | undefined;
 
       do {
@@ -188,8 +311,18 @@ export function useChainAppState(baseState: AppState): ChainState {
             invites.push({
               id: data.objectId,
               marketId: parseMarketId(idFromField(fields, "market_id")),
-              grantee: parseSuiAddress(fieldString(fields, "grantee")),
+              grantee: parseSuiObjectId(idFromField(fields, "grantee")),
               maxStakeMist: parseMistAmount(fieldBigInt(fields, "max_stake")),
+            });
+          } else if (data.type.includes("::market::FriendRequest")) {
+            friendRequests.push({
+              id: parseSuiObjectId(data.objectId),
+              requester: parseUserId(
+                parseSuiObjectId(idFromField(fields, "requester")),
+              ),
+              target: parseUserId(
+                parseSuiObjectId(idFromField(fields, "target")),
+              ),
             });
           } else if (
             data.type.includes("::market::Position") &&
@@ -198,7 +331,7 @@ export function useChainAppState(baseState: AppState): ChainState {
             positions.push({
               id: data.objectId,
               marketId: parseMarketId(idFromField(fields, "market_id")),
-              owner: parseSuiAddress(fieldString(fields, "owner")),
+              owner: parseSuiObjectId(idFromField(fields, "owner")),
               outcome: outcomeFromCode(fieldNumber(fields, "outcome")),
               amountMist: parseMistAmount(fieldBigInt(fields, "stake")),
               claimed: fieldBoolean(fields, "claimed"),
@@ -209,17 +342,22 @@ export function useChainAppState(baseState: AppState): ChainState {
         if (!response.hasNextPage) break;
       } while (cursor !== null && cursor !== undefined);
 
-      return { invites, positions };
+      return { invites, positions, friendRequests };
     }
 
     async function fetchMarkets(
       marketEvents: readonly ChainMarketCreated[],
       owned: OwnedChainObjects,
+      friendships: readonly Friendship[],
+      viewerProfileId: SuiObjectId | undefined,
     ): Promise<ReadonlyMap<MarketId, Market>> {
       const marketIds = marketEvents.map((event) => event.id);
       if (marketIds.length === 0) return new Map();
       const marketCreatedAtMs = new Map(
         marketEvents.map((event) => [event.id, event.createdAtMs] as const),
+      );
+      const marketEventById = new Map(
+        marketEvents.map((event) => [event.id, event] as const),
       );
       const objectPages = await Promise.all(
         chunks([...new Set(marketIds)], 50).map((ids) =>
@@ -240,15 +378,21 @@ export function useChainAppState(baseState: AppState): ChainState {
         if (!data.type?.includes("::market::Market")) continue;
 
         const marketId = parseMarketId(data.objectId);
-        const creator = parseSuiAddress(fieldString(fields, "creator"));
-        const subjectA = parseSuiAddress(fieldString(fields, "subject_a"));
-        const subjectB = parseSuiAddress(fieldString(fields, "subject_b"));
-        const viewerVisible =
-          sameAddress(creator, viewerAddress) ||
-          sameAddress(subjectA, viewerAddress) ||
-          sameAddress(subjectB, viewerAddress) ||
-          owned.invites.some((invite) => invite.marketId === marketId) ||
-          owned.positions.some((position) => position.marketId === marketId);
+        const creator = parseSuiObjectId(idFromField(fields, "creator"));
+        const subjectA = parseSuiObjectId(idFromField(fields, "subject_a"));
+        const subjectB = parseSuiObjectId(idFromField(fields, "subject_b"));
+        const visibility =
+          marketEventById.get(marketId)?.visibility ?? "friends";
+        const viewerVisible = isMarketVisible({
+          marketId,
+          creator,
+          subjectA,
+          subjectB,
+          visibility,
+          viewerProfileId,
+          owned,
+          friendships,
+        });
 
         if (!viewerVisible) continue;
 
@@ -296,6 +440,7 @@ export function useChainAppState(baseState: AppState): ChainState {
                 : { status: "pending" },
             },
           ],
+          visibility,
           operationalization: metadata.operationalization,
           closeMs: parseUnixMs(fieldNumber(fields, "close_ms")),
           resolutionDeadlineMs: parseUnixMs(
@@ -350,6 +495,29 @@ function profileForAddress(address: SuiAddress): UserProfile {
   };
 }
 
+function profileForChainProfile(profile: ChainProfile): UserProfile {
+  return {
+    id: parseUserId(profile.id),
+    handle: profile.handle,
+    displayName: `@${profile.handle}`,
+    profileObjectId: profile.id,
+    address: profile.owner,
+  };
+}
+
+function ensureProfile(
+  users: Map<UserProfile["id"], UserProfile>,
+  id: UserProfile["id"],
+): void {
+  if (users.has(id)) return;
+  users.set(id, {
+    id,
+    handle: id,
+    displayName: id,
+    address: parseSuiAddress("0x1"),
+  });
+}
+
 function sameAddress(a: SuiAddress, b: SuiAddress): boolean {
   return parseSuiAddress(a) === parseSuiAddress(b);
 }
@@ -360,6 +528,23 @@ function fieldString(fields: Record<string, unknown>, key: string): string {
   const id = idFromField(fields, key);
   if (id !== undefined) return id;
   throw new Error(`Missing string field: ${key}`);
+}
+
+function fieldBytesAsString(
+  fields: Record<string, unknown>,
+  key: string,
+): string {
+  const value = fields[key];
+  if (Array.isArray(value)) {
+    const bytes = value.map((b) =>
+      typeof b === "number" ? b : typeof b === "string" ? Number(b) : NaN,
+    );
+    if (bytes.every((b) => Number.isInteger(b) && b >= 0 && b <= 255)) {
+      return new TextDecoder().decode(new Uint8Array(bytes));
+    }
+  }
+  if (typeof value === "string") return value;
+  throw new Error(`Missing byte vector field: ${key}`);
 }
 
 function fieldBoolean(fields: Record<string, unknown>, key: string): boolean {
@@ -450,10 +635,104 @@ function outcomeFromOptionalCode(
   return undefined;
 }
 
+function visibilityFromCode(code: number): VisibilityScope {
+  if (code === 0) return "friends";
+  if (code === 1) return "friends-of-friends";
+  if (code === 2) return "public";
+  return "friends";
+}
+
+function isMarketVisible({
+  marketId,
+  creator,
+  subjectA,
+  subjectB,
+  visibility,
+  viewerProfileId,
+  owned,
+  friendships,
+}: {
+  readonly marketId: MarketId;
+  readonly creator: SuiObjectId;
+  readonly subjectA: SuiObjectId;
+  readonly subjectB: SuiObjectId;
+  readonly visibility: VisibilityScope;
+  readonly viewerProfileId: SuiObjectId | undefined;
+  readonly owned: OwnedChainObjects;
+  readonly friendships: readonly Friendship[];
+}): boolean {
+  const viewer =
+    viewerProfileId === undefined ? undefined : parseUserId(viewerProfileId);
+  const isSubject =
+    viewer !== undefined &&
+    (viewer === parseUserId(subjectA) || viewer === parseUserId(subjectB));
+  if (isSubject) return false;
+  if (viewer !== undefined && viewer === parseUserId(creator)) return true;
+  if (
+    viewer !== undefined &&
+    (owned.invites.some(
+      (invite) =>
+        invite.marketId === marketId && parseUserId(invite.grantee) === viewer,
+    ) ||
+      owned.positions.some(
+        (position) =>
+          position.marketId === marketId &&
+          parseUserId(position.owner) === viewer,
+      ))
+  ) {
+    return true;
+  }
+  if (visibility === "public") return true;
+  if (viewer === undefined) return false;
+
+  const creatorUser = parseUserId(creator);
+  if (areFriends(friendships, creatorUser, viewer)) return true;
+  return (
+    visibility === "friends-of-friends" &&
+    mutualFriendCount(friendships, creatorUser, viewer) > 0
+  );
+}
+
+function areFriends(
+  friendships: readonly Friendship[],
+  a: UserProfile["id"],
+  b: UserProfile["id"],
+): boolean {
+  return friendships.some(
+    (f) => (f.a === a && f.b === b) || (f.a === b && f.b === a),
+  );
+}
+
+function mutualFriendCount(
+  friendships: readonly Friendship[],
+  a: UserProfile["id"],
+  b: UserProfile["id"],
+): number {
+  const aFriends = friendsOf(friendships, a);
+  const bFriends = friendsOf(friendships, b);
+  let count = 0;
+  for (const friend of aFriends) {
+    if (bFriends.has(friend)) count += 1;
+  }
+  return count;
+}
+
+function friendsOf(
+  friendships: readonly Friendship[],
+  profile: UserProfile["id"],
+): ReadonlySet<UserProfile["id"]> {
+  const friends = new Set<UserProfile["id"]>();
+  for (const friendship of friendships) {
+    if (friendship.a === profile) friends.add(friendship.b);
+    if (friendship.b === profile) friends.add(friendship.a);
+  }
+  return friends;
+}
+
 function attestationsFromFields(
   fields: Record<string, unknown>,
-  subjectA: SuiAddress,
-  subjectB: SuiAddress,
+  subjectA: SuiObjectId,
+  subjectB: SuiObjectId,
 ): Market["attestations"] {
   const now = parseUnixMs(Date.now());
   return [

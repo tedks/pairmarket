@@ -1,13 +1,13 @@
 import type { JSX } from "react";
 import { useState } from "react";
-import { useCurrentAccount } from "@mysten/dapp-kit-react";
-import {
-  parseSuiAddress,
-  parseUnixMs,
-  tryParseSuiAddress,
-} from "@pairmarket/core";
+import { parseSuiObjectId, parseUnixMs } from "@pairmarket/core";
 import type { Route } from "../App.tsx";
-import type { OperationalizationKind } from "../types.ts";
+import type {
+  AppState,
+  OperationalizationKind,
+  UserProfile,
+  VisibilityScope,
+} from "../types.ts";
 import { requirePairmarketMoveConfig } from "../sui/config.ts";
 import {
   buildCreateMarketTransaction,
@@ -17,40 +17,43 @@ import { saveLocalMarketMetadata } from "../sui/metadata.ts";
 import { useExecuteSuiTransaction } from "../sui/execute.ts";
 
 type Props = {
+  readonly state: AppState;
   readonly setRoute: (r: Route) => void;
   readonly refresh: () => void;
 };
 
 type OpKindLabel = OperationalizationKind["kind"];
 
-export function CreateMarket({ setRoute, refresh }: Props): JSX.Element {
-  const account = useCurrentAccount();
+export function CreateMarket({ state, setRoute, refresh }: Props): JSX.Element {
   const execute = useExecuteSuiTransaction();
+  const viewerProfile = state.users.get(state.viewer);
   const [title, setTitle] = useState("Will X and Y last 3 dates?");
   const [prompt, setPrompt] = useState(
     "Three dates means three meetings of at least 90 minutes with mutual intent.",
   );
   const [subjectA, setSubjectA] = useState("");
   const [subjectB, setSubjectB] = useState("");
+  const [visibility, setVisibility] = useState<VisibilityScope>("friends");
   const [opKind, setOpKind] = useState<OpKindLabel>("lasts-n-dates");
   const [nDates, setNDates] = useState(3);
   const [closeDays, setCloseDays] = useState(7);
   const [resolutionDeadlineDays, setResolutionDeadlineDays] = useState(21);
   const [err, setErr] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
-  const parsedSubjectA = tryParseSuiAddress(subjectA.trim());
-  const parsedSubjectB = tryParseSuiAddress(subjectB.trim());
+  const resolvedSubjectA = resolveFriendProfile(state, subjectA);
+  const resolvedSubjectB = resolveFriendProfile(state, subjectB);
+  const viewerProfileId = viewerProfile?.profileObjectId;
   const deadlineOrderError =
     closeDays < resolutionDeadlineDays
       ? undefined
       : "Close deadline must be before the resolution deadline.";
 
   const canSubmit =
-    account !== null &&
+    viewerProfileId !== undefined &&
     title.trim().length > 0 &&
-    parsedSubjectA.ok &&
-    parsedSubjectB.ok &&
-    parsedSubjectA.value !== parsedSubjectB.value &&
+    resolvedSubjectA !== undefined &&
+    resolvedSubjectB !== undefined &&
+    resolvedSubjectA.profileObjectId !== resolvedSubjectB.profileObjectId &&
     resolutionDeadlineDays > 0 &&
     closeDays > 0 &&
     deadlineOrderError === undefined &&
@@ -94,19 +97,20 @@ export function CreateMarket({ setRoute, refresh }: Props): JSX.Element {
                       };
               const tx = await buildCreateMarketTransaction({
                 config,
-                creator: parseSuiAddress(account!.address),
+                creatorProfile: viewerProfileId,
                 operationalization,
+                visibility,
                 title,
                 prompt,
-                subjectA: parsedSubjectA.value,
-                subjectB: parsedSubjectB.value,
+                subjectAProfile: resolvedSubjectA.profileObjectId,
+                subjectBProfile: resolvedSubjectB.profileObjectId,
                 closeMs,
                 earliestAttestMs: closeMs,
                 resolutionDeadlineMs,
                 challengeWindowMs,
                 disputeDeadlineMs: resolutionDeadlineMs + challengeWindowMs,
                 feeBps: 0,
-                resolverCommittee: [parseSuiAddress(account!.address)],
+                resolverCommittee: [viewerProfileId],
               });
               const result = await execute(tx);
               const marketId = findCreatedMarketId(result);
@@ -155,7 +159,7 @@ export function CreateMarket({ setRoute, refresh }: Props): JSX.Element {
               value={subjectA}
               onChange={(e) => setSubjectA(e.target.value)}
               data-testid="create-subject-a"
-              placeholder="0x..."
+              placeholder="@heyellieday"
               required
             />
           </Field>
@@ -165,9 +169,23 @@ export function CreateMarket({ setRoute, refresh }: Props): JSX.Element {
               value={subjectB}
               onChange={(e) => setSubjectB(e.target.value)}
               data-testid="create-subject-b"
-              placeholder="0x..."
+              placeholder="@tedks"
               required
             />
+          </Field>
+
+          <Field label="Visibility">
+            <select
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as VisibilityScope)}
+              data-testid="create-visibility"
+            >
+              <option value="friends">Creator's friends only</option>
+              <option value="friends-of-friends">
+                Creator's friends + friends of friends
+              </option>
+              <option value="public">Public</option>
+            </select>
           </Field>
 
           <Field label="Operationalization">
@@ -222,14 +240,16 @@ export function CreateMarket({ setRoute, refresh }: Props): JSX.Element {
             {deadlineOrderError}
           </p>
         ) : null}
-        {parsedSubjectA.ok || subjectA.trim() === "" ? null : (
-          <p className="form-error">Subject A must be a Sui address.</p>
+        {resolvedSubjectA !== undefined || subjectA.trim() === "" ? null : (
+          <p className="form-error">Subject A must be a known friend handle.</p>
         )}
-        {parsedSubjectB.ok || subjectB.trim() === "" ? null : (
-          <p className="form-error">Subject B must be a Sui address.</p>
+        {resolvedSubjectB !== undefined || subjectB.trim() === "" ? null : (
+          <p className="form-error">Subject B must be a known friend handle.</p>
         )}
-        {account === null ? (
-          <p className="form-error">Connect a Sui wallet to create a market.</p>
+        {viewerProfileId === undefined ? (
+          <p className="form-error">
+            Create a profile object before creating a market.
+          </p>
         ) : null}
         {err ? <p className="form-error">{err}</p> : null}
 
@@ -252,6 +272,52 @@ export function CreateMarket({ setRoute, refresh }: Props): JSX.Element {
         </div>
       </form>
     </section>
+  );
+}
+
+function resolveFriendProfile(
+  state: AppState,
+  input: string,
+):
+  | (UserProfile & {
+      readonly profileObjectId: NonNullable<UserProfile["profileObjectId"]>;
+    })
+  | undefined {
+  const cleaned = input.trim().replace(/^@/, "").toLowerCase();
+  if (cleaned === "") return undefined;
+  const byHandle = [...state.users.values()].find(
+    (profile) =>
+      profile.profileObjectId !== undefined &&
+      profile.handle.toLowerCase() === cleaned,
+  );
+  if (
+    byHandle?.profileObjectId !== undefined &&
+    isViewerFriend(state, byHandle)
+  ) {
+    return byHandle as UserProfile & {
+      readonly profileObjectId: NonNullable<UserProfile["profileObjectId"]>;
+    };
+  }
+  try {
+    const objectId = parseSuiObjectId(input.trim());
+    const byId = [...state.users.values()].find(
+      (profile) => profile.profileObjectId === objectId,
+    );
+    return byId?.profileObjectId === undefined || !isViewerFriend(state, byId)
+      ? undefined
+      : (byId as UserProfile & {
+          readonly profileObjectId: NonNullable<UserProfile["profileObjectId"]>;
+        });
+  } catch {
+    return undefined;
+  }
+}
+
+function isViewerFriend(state: AppState, profile: UserProfile): boolean {
+  return state.friendships.some(
+    (friendship) =>
+      (friendship.a === state.viewer && friendship.b === profile.id) ||
+      (friendship.b === state.viewer && friendship.a === profile.id),
   );
 }
 

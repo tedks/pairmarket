@@ -3,10 +3,10 @@ import {
   parseMarketId,
   type MarketId,
   type MistAmount,
-  type SuiAddress,
+  type SuiObjectId,
   type WagerOutcome,
 } from "@pairmarket/core";
-import type { OperationalizationKind } from "../types.ts";
+import type { OperationalizationKind, VisibilityScope } from "../types.ts";
 import {
   SUI_CLOCK_OBJECT_ID,
   SUI_COIN_TYPE,
@@ -19,23 +19,30 @@ const OUTCOME = {
   invalid: 3,
 } as const;
 
+const VISIBILITY_CODE: Record<VisibilityScope, number> = {
+  friends: 0,
+  "friends-of-friends": 1,
+  public: 2,
+};
+
 const textEncoder = new TextEncoder();
 
 export type CreateMarketTxInput = {
   readonly config: PairmarketMoveConfig;
-  readonly creator: SuiAddress;
+  readonly creatorProfile: SuiObjectId;
   readonly operationalization: OperationalizationKind;
+  readonly visibility: VisibilityScope;
   readonly title: string;
   readonly prompt: string;
-  readonly subjectA: SuiAddress;
-  readonly subjectB: SuiAddress;
+  readonly subjectAProfile: SuiObjectId;
+  readonly subjectBProfile: SuiObjectId;
   readonly closeMs: number;
   readonly earliestAttestMs: number;
   readonly resolutionDeadlineMs: number;
   readonly challengeWindowMs: number;
   readonly disputeDeadlineMs: number;
   readonly feeBps: number;
-  readonly resolverCommittee: readonly SuiAddress[];
+  readonly resolverCommittee: readonly SuiObjectId[];
 };
 
 export async function buildCreateMarketTransaction(
@@ -46,33 +53,39 @@ export async function buildCreateMarketTransaction(
     title: input.title,
     prompt: input.prompt,
     operationalization: input.operationalization,
-    subjectA: input.subjectA,
-    subjectB: input.subjectB,
+    visibility: input.visibility,
+    subjectA: input.subjectAProfile,
+    subjectB: input.subjectBProfile,
     resolutionDeadlineMs: input.resolutionDeadlineMs,
   });
   const metadataRef = textEncoder.encode(`local-browser:${hex(contentHash)}`);
   const subjectRef = await sha256Bytes({
-    subjectA: input.subjectA,
-    subjectB: input.subjectB,
+    subjectA: input.subjectAProfile,
+    subjectB: input.subjectBProfile,
   });
 
   tx.moveCall({
     target: `${input.config.packageId}::market::create_market`,
     typeArguments: [SUI_COIN_TYPE],
     arguments: [
+      tx.object(input.creatorProfile),
       tx.pure.vector("u8", [...contentHash]),
       tx.pure.vector("u8", [...metadataRef]),
       tx.pure.vector("u8", [...subjectRef]),
       tx.pure.vector("u8", [...textEncoder.encode("localnet-self-custody-v1")]),
-      tx.pure.address(input.subjectA),
-      tx.pure.address(input.subjectB),
+      tx.object(input.subjectAProfile),
+      tx.object(input.subjectBProfile),
+      tx.pure.u8(VISIBILITY_CODE[input.visibility]),
       tx.pure.u64(input.closeMs),
       tx.pure.u64(input.earliestAttestMs),
       tx.pure.u64(input.resolutionDeadlineMs),
       tx.pure.u64(input.challengeWindowMs),
       tx.pure.u64(input.disputeDeadlineMs),
       tx.pure.u16(input.feeBps),
-      tx.pure.vector("address", [...input.resolverCommittee, input.creator]),
+      tx.pure.vector("address", [
+        ...input.resolverCommittee,
+        input.creatorProfile,
+      ]),
       tx.object(input.config.configId),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
@@ -84,12 +97,17 @@ export async function buildCreateMarketTransaction(
 export function buildConsentTransaction(
   config: PairmarketMoveConfig,
   marketId: MarketId,
+  profileId: SuiObjectId,
 ): Transaction {
   const tx = new Transaction();
   tx.moveCall({
     target: `${config.packageId}::market::record_subject_consent`,
     typeArguments: [SUI_COIN_TYPE],
-    arguments: [tx.object(marketId), tx.object(SUI_CLOCK_OBJECT_ID)],
+    arguments: [
+      tx.object(marketId),
+      tx.object(profileId),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
   });
   return tx;
 }
@@ -97,7 +115,8 @@ export function buildConsentTransaction(
 export function buildMintInviteTransaction(
   config: PairmarketMoveConfig,
   marketId: MarketId,
-  grantee: SuiAddress,
+  creatorProfileId: SuiObjectId,
+  granteeProfileId: SuiObjectId,
   maxStakeMist: MistAmount,
   expiresMs: number,
 ): Transaction {
@@ -107,7 +126,8 @@ export function buildMintInviteTransaction(
     typeArguments: [SUI_COIN_TYPE],
     arguments: [
       tx.object(marketId),
-      tx.pure.address(grantee),
+      tx.object(creatorProfileId),
+      tx.object(granteeProfileId),
       tx.pure.u64(maxStakeMist as bigint),
       tx.pure.u64(expiresMs),
       tx.object(SUI_CLOCK_OBJECT_ID),
@@ -120,6 +140,7 @@ export function buildPlaceTransaction(
   config: PairmarketMoveConfig,
   marketId: MarketId,
   inviteId: string,
+  profileId: SuiObjectId,
   outcome: WagerOutcome,
   amountMist: MistAmount,
 ): Transaction {
@@ -131,6 +152,7 @@ export function buildPlaceTransaction(
     arguments: [
       tx.object(marketId),
       tx.object(inviteId),
+      tx.object(profileId),
       stake,
       tx.pure.u8(OUTCOME[outcome]),
       tx.object(SUI_CLOCK_OBJECT_ID),
@@ -142,6 +164,7 @@ export function buildPlaceTransaction(
 export function buildSubmitAttestationTransaction(
   config: PairmarketMoveConfig,
   marketId: MarketId,
+  profileId: SuiObjectId,
   outcome: "yes" | "no" | "invalid",
 ): Transaction {
   const tx = new Transaction();
@@ -150,6 +173,7 @@ export function buildSubmitAttestationTransaction(
     typeArguments: [SUI_COIN_TYPE],
     arguments: [
       tx.object(marketId),
+      tx.object(profileId),
       tx.pure.u8(OUTCOME[outcome]),
       tx.pure.vector("u8", [...textEncoder.encode("localnet-attestation")]),
       tx.object(SUI_CLOCK_OBJECT_ID),
@@ -175,12 +199,17 @@ export function buildClaimTransaction(
   config: PairmarketMoveConfig,
   marketId: MarketId,
   positionId: string,
+  profileId: SuiObjectId,
 ): Transaction {
   const tx = new Transaction();
   tx.moveCall({
     target: `${config.packageId}::market::claim`,
     typeArguments: [SUI_COIN_TYPE],
-    arguments: [tx.object(marketId), tx.object(positionId)],
+    arguments: [
+      tx.object(marketId),
+      tx.object(positionId),
+      tx.object(profileId),
+    ],
   });
   return tx;
 }
@@ -189,12 +218,17 @@ export function buildRefundTransaction(
   config: PairmarketMoveConfig,
   marketId: MarketId,
   positionId: string,
+  profileId: SuiObjectId,
 ): Transaction {
   const tx = new Transaction();
   tx.moveCall({
     target: `${config.packageId}::market::refund`,
     typeArguments: [SUI_COIN_TYPE],
-    arguments: [tx.object(marketId), tx.object(positionId)],
+    arguments: [
+      tx.object(marketId),
+      tx.object(positionId),
+      tx.object(profileId),
+    ],
   });
   return tx;
 }
