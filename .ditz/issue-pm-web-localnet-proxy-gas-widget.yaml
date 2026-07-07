@@ -8,8 +8,8 @@ type: bugfix
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-07-07T00:34:48-00:00
 references: []
 log_events:
@@ -21,3 +21,8 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-07-07T00:38:58-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Fixed in PR #19 by loading Vite env before configuring localnet proxies
+    and adding the Account gas faucet card.'
