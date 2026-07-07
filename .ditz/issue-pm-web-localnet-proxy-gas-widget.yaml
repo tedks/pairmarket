@@ -1,0 +1,19 @@
+id: pm-web-localnet-proxy-gas-widget
+title: Fix browser localnet proxy and add faucet gas widget
+desc: The browser app can point at a package ID that exists on the CLI localnet while
+  Vite proxies /sui-rpc to the wrong default RPC, causing profile creation to fail
+  with Dependent package not found on-chain. Load .env.local in Vite proxy config
+  and add an Account gas widget for requesting localnet faucet gas.
+type: bugfix
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-07T00:34:48-00:00
+references: []
+log_events:
+- time: 2026-07-07T00:34:48-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
