@@ -9,8 +9,8 @@ type: feature
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-07-07T01:00:55-00:00
 references: []
 log_events:
@@ -22,3 +22,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-07-07T01:25:17-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Implemented in PR #21: the self-custody bridge now auto-requests localnet
+    faucet gas for the active connected wallet when balance is below the working threshold,
+    with custody/network guards, cooldown, Account fallback, runtime coverage, and
+    Playwright recipient verification.'
