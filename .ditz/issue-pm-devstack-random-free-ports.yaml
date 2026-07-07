@@ -1,0 +1,19 @@
+id: pm-devstack-random-free-ports
+title: Default pairmarket devstack to free local ports
+desc: Pairmarket should avoid colliding with other Sui dev projects on shared hosts
+  by selecting and persisting free local RPC/faucet/GraphQL ports when no explicit
+  SUI_DEVSTACK_* port override is provided. The wrapper should preflight explicit
+  or generated ports before binding and document how to inspect/reuse them.
+type: task
+component: devstack
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-07T00:41:56-00:00
+references: []
+log_events:
+- time: 2026-07-07T00:41:56-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
