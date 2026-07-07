@@ -1,0 +1,18 @@
+id: pm-web-sui-page-limit
+title: Fix Sui localnet pagination limit on wallet connect
+desc: Wallet connect failed against localnet with 'Page size limit 100 exceeds max
+  limit 50' because the chain loader requested 100 events/owned objects per page.
+  Clamp loader pagination to 50.
+type: bugfix
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-07T00:21:29-00:00
+references: []
+log_events:
+- time: 2026-07-07T00:21:29-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
