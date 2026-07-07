@@ -3,6 +3,11 @@ import { useCallback, useEffect, useState } from "react";
 import type { CustodyState } from "@pairmarket/core";
 import type { AppState } from "../types.ts";
 import { formatAddress } from "../format.ts";
+import {
+  canReadLocalnetGasBalance,
+  getSuiBalanceMist,
+  requestSuiGas,
+} from "../sui/gas.ts";
 
 type Props = {
   readonly state: AppState;
@@ -138,18 +143,15 @@ function GasCard({
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const address = custody?.address;
-  const isLocalnet = custody?.network === "localnet";
+  const isLocalnet = canReadLocalnetGasBalance(custody);
 
   const refreshBalance = useCallback(async () => {
-    if (address === undefined) {
+    if (address === undefined || !isLocalnet) {
       setBalanceMist(undefined);
       return;
     }
-    const result = await suiRpc<{ totalBalance?: string }>("suix_getBalance", [
-      address,
-    ]);
-    setBalanceMist(BigInt(result.totalBalance ?? "0"));
-  }, [address]);
+    setBalanceMist(await getSuiBalanceMist(address));
+  }, [address, isLocalnet]);
 
   useEffect(() => {
     setMessage(undefined);
@@ -187,7 +189,7 @@ function GasCard({
                 setError(undefined);
                 void (async () => {
                   try {
-                    await requestGas(custody.address);
+                    await requestSuiGas(custody.address);
                     await refreshBalance();
                     setMessage("Gas requested from localnet faucet.");
                   } catch (e) {
@@ -212,47 +214,6 @@ function GasCard({
       </div>
     </div>
   );
-}
-
-async function suiRpc<T>(
-  method: string,
-  params: readonly unknown[],
-): Promise<T> {
-  const response = await fetch("/sui-rpc", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  const payload = (await response.json()) as {
-    result?: T;
-    error?: { message?: string };
-  };
-  if (
-    !response.ok ||
-    payload.error !== undefined ||
-    payload.result === undefined
-  ) {
-    throw new Error(payload.error?.message ?? `Sui RPC ${method} failed`);
-  }
-  return payload.result;
-}
-
-async function requestGas(recipient: string): Promise<void> {
-  const response = await fetch("/sui-faucet/v2/gas", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ FixedAmountRequest: { recipient } }),
-  });
-  const payload = (await response.json()) as {
-    status?: "Success" | { Failure?: { internal?: string } };
-  };
-  if (!response.ok || payload.status !== "Success") {
-    const failure =
-      typeof payload.status === "object"
-        ? payload.status.Failure?.internal
-        : undefined;
-    throw new Error(failure ?? "Faucet request failed");
-  }
 }
 
 function formatSui(mist: bigint): string {

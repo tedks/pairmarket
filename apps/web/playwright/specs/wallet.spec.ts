@@ -5,6 +5,55 @@ test.describe("generated-key wallet", () => {
     walletPage,
     walletAddress,
   }) => {
+    const faucetRecipients: string[] = [];
+
+    await walletPage.route("**/sui-rpc", async (route) => {
+      const request = route.request().postDataJSON() as {
+        readonly method?: string;
+      };
+      if (request.method === "suix_getBalance") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            result: { totalBalance: "0" },
+          }),
+        });
+        return;
+      }
+      if (
+        request.method === "suix_queryEvents" ||
+        request.method === "suix_getOwnedObjects"
+      ) {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            result: { data: [], nextCursor: null, hasNextPage: false },
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, result: [] }),
+      });
+    });
+
+    await walletPage.route("**/sui-faucet/v2/gas", async (route) => {
+      const request = route.request().postDataJSON() as {
+        readonly FixedAmountRequest?: { readonly recipient?: string };
+      };
+      const recipient = request.FixedAmountRequest?.recipient;
+      if (recipient !== undefined) faucetRecipients.push(recipient);
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ status: "Success" }),
+      });
+    });
+
     await walletPage.goto("/");
 
     await expect(walletPage.getByTestId("connect-wallet")).toBeEnabled();
@@ -25,5 +74,6 @@ test.describe("generated-key wallet", () => {
     await expect(walletPage.locator(".account-panel")).toContainText(
       walletAddress.slice(-4),
     );
+    await expect.poll(() => faucetRecipients).toEqual([walletAddress]);
   });
 });
