@@ -10,6 +10,7 @@ CLIENT_CONFIG="$CLIENT_DIR/client.yaml"
 ADDRESS_JSON="$CLIENT_DIR/deployer-address.json"
 LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
 WEB_ENV_FILE="$PROJECT_ROOT/apps/web/.env.local"
+PORT_ENV_FILE="$STATE_DIR/ports.env"
 PUBLISH_JSON="$STATE_DIR/publish-output.json"
 PUBFILE="$STATE_DIR/Published.localnet.toml"
 PACKAGE_ID_FILE="$STATE_DIR/package-id.txt"
@@ -17,6 +18,8 @@ CONFIG_ID_FILE="$STATE_DIR/config-id.txt"
 ADMIN_CAP_ID_FILE="$STATE_DIR/admin-cap-id.txt"
 PUBLISH_WORKDIR="$STATE_DIR/publish-workdir"
 PUBLISH_GAS_BUDGET="${PAIRMARKET_PUBLISH_GAS_BUDGET:-1000000000}"
+PORT_RANGE_START="${PAIRMARKET_DEVSTACK_PORT_RANGE_START:-20000}"
+PORT_RANGE_END="${PAIRMARKET_DEVSTACK_PORT_RANGE_END:-29999}"
 
 SUI_DEVSTACK_HOME="${SUI_DEVSTACK_HOME:-}"
 SUI_DEVSTACK_SCRIPT="${SUI_DEVSTACK_SCRIPT:-}"
@@ -41,9 +44,11 @@ Environment:
   SUI_DEVSTACK_HOME             Path to sui-devstack checkout
   SUI_DEVSTACK_SCRIPT           Override path to localnet/sui-localnet.sh
   PAIRMARKET_DEVSTACK_DIR       Override state dir (default: .devstack)
-  SUI_DEVSTACK_RPC_PORT         Override local RPC port
-  SUI_DEVSTACK_FAUCET_PORT      Override local faucet port
-  SUI_DEVSTACK_GRAPHQL_PORT     Override local GraphQL port
+  SUI_DEVSTACK_RPC_PORT         Override local RPC port (otherwise generated)
+  SUI_DEVSTACK_FAUCET_PORT      Override local faucet port (otherwise generated)
+  SUI_DEVSTACK_GRAPHQL_PORT     Override local GraphQL port (otherwise generated)
+  PAIRMARKET_DEVSTACK_PORT_RANGE_START  First generated port (default: 20000)
+  PAIRMARKET_DEVSTACK_PORT_RANGE_END    Last generated port (default: 29999)
   SUI_RPC_PORT                  Legacy alias for SUI_DEVSTACK_RPC_PORT
   SUI_FAUCET_PORT               Legacy alias for SUI_DEVSTACK_FAUCET_PORT
   SUI_GRAPHQL_PORT              Legacy alias for SUI_DEVSTACK_GRAPHQL_PORT
@@ -72,8 +77,10 @@ find_sui_devstack_script() {
 
   local candidate
   for candidate in \
+    "$PROJECT_ROOT/../../../sui-devstack/agent/sui-173-localnet/localnet/sui-localnet.sh" \
     "$PROJECT_ROOT/../../../sui-devstack/master/localnet/sui-localnet.sh" \
     "$PROJECT_ROOT/../../../sui-devstack/agent/consumer-contract/localnet/sui-localnet.sh" \
+    "$HOME/Projects/sui-devstack/agent/sui-173-localnet/localnet/sui-localnet.sh" \
     "$HOME/Projects/sui-devstack/master/localnet/sui-localnet.sh"; do
     if [[ -x "$candidate" ]]; then
       printf '%s\n' "$candidate"
@@ -95,11 +102,161 @@ sui_devstack_script() {
   printf '%s\n' "$script"
 }
 
-with_sui_devstack_env() {
-  export SUI_DEVSTACK_COMPOSE_PROJECT="${SUI_DEVSTACK_COMPOSE_PROJECT:-pairmarket-devstack}"
-  export SUI_DEVSTACK_STATE_DIR="${SUI_DEVSTACK_STATE_DIR:-$STATE_DIR/sui-localnet/state}"
-  export SUI_DEVSTACK_LOGS_DIR="${SUI_DEVSTACK_LOGS_DIR:-$STATE_DIR/sui-localnet/logs}"
+is_valid_port() {
+  [[ "$1" =~ ^[0-9]+$ ]] && (( "$1" >= 1 && "$1" <= 65535 ))
+}
 
+require_valid_port() {
+  local name="$1"
+  local value="$2"
+  if ! is_valid_port "$value"; then
+    err "$name must be a TCP port in the range 1-65535; got '$value'"
+    exit 1
+  fi
+}
+
+load_persisted_ports() {
+  [[ -f "$PORT_ENV_FILE" ]] || return 0
+
+  local line key value
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "$line" && "${line:0:1}" != "#" && "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      SUI_DEVSTACK_RPC_PORT)
+        if [[ -z "${SUI_DEVSTACK_RPC_PORT:-}" ]]; then
+          SUI_DEVSTACK_RPC_PORT="$value"
+        fi
+        ;;
+      SUI_DEVSTACK_FAUCET_PORT)
+        if [[ -z "${SUI_DEVSTACK_FAUCET_PORT:-}" ]]; then
+          SUI_DEVSTACK_FAUCET_PORT="$value"
+        fi
+        ;;
+      SUI_DEVSTACK_GRAPHQL_PORT)
+        if [[ -z "${SUI_DEVSTACK_GRAPHQL_PORT:-}" ]]; then
+          SUI_DEVSTACK_GRAPHQL_PORT="$value"
+        fi
+        ;;
+    esac
+  done < "$PORT_ENV_FILE"
+}
+
+select_free_ports() {
+  require_cmd node
+  node - "$PORT_RANGE_START" "$PORT_RANGE_END" "$@" <<'NODE'
+const net = require("node:net");
+
+const rangeStart = Number(process.argv[2]);
+const rangeEnd = Number(process.argv[3]);
+const excludes = new Set(["9000", "9123", "9125", ...process.argv.slice(4)]);
+const servers = [];
+const ports = [];
+
+if (!Number.isInteger(rangeStart) || !Number.isInteger(rangeEnd) || rangeStart < 1024 || rangeEnd > 65535 || rangeStart > rangeEnd) {
+  throw new Error(`invalid generated port range ${process.argv[2]}-${process.argv[3]}`);
+}
+
+function candidate(attempt) {
+  const width = rangeEnd - rangeStart + 1;
+  return rangeStart + ((Math.floor(Math.random() * width) + attempt) % width);
+}
+
+function listen(port) {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen({ host: "0.0.0.0", port, exclusive: true }, () => {
+      resolve(server);
+    });
+  });
+}
+
+function close(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
+(async () => {
+  const maxAttempts = Math.max(100, (rangeEnd - rangeStart + 1) * 2);
+  for (let attempts = 0; ports.length < 3 && attempts < maxAttempts; attempts += 1) {
+    const port = String(candidate(attempts));
+    if (excludes.has(port)) {
+      continue;
+    }
+    try {
+      const server = await listen(Number(port));
+      excludes.add(port);
+      ports.push(port);
+      servers.push(server);
+    } catch {
+      excludes.add(port);
+    }
+  }
+
+  if (ports.length !== 3) {
+    throw new Error("unable to allocate three free local ports");
+  }
+
+  process.stdout.write(`${ports.join(" ")}\n`);
+  await Promise.all(servers.map(close));
+})().catch(async (error) => {
+  await Promise.all(servers.map(close));
+  console.error(error.message);
+  process.exit(1);
+});
+NODE
+}
+
+assert_ports_available() {
+  require_cmd node
+  node - "$@" <<'NODE'
+const net = require("node:net");
+
+const ports = process.argv.slice(2);
+const servers = [];
+
+function listen(port) {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", (error) => {
+      reject(new Error(`port ${port} is not available: ${error.message}`));
+    });
+    server.listen({ host: "0.0.0.0", port: Number(port), exclusive: true }, () => {
+      resolve(server);
+    });
+  });
+}
+
+function close(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
+(async () => {
+  for (const port of ports) {
+    servers.push(await listen(port));
+  }
+  await Promise.all(servers.map(close));
+})().catch(async (error) => {
+  await Promise.all(servers.map(close));
+  console.error(error.message);
+  process.exit(1);
+});
+NODE
+}
+
+persist_ports() {
+  mkdir -p "$STATE_DIR"
+  cat > "$PORT_ENV_FILE" <<EOF
+SUI_DEVSTACK_RPC_PORT=$SUI_DEVSTACK_RPC_PORT
+SUI_DEVSTACK_FAUCET_PORT=$SUI_DEVSTACK_FAUCET_PORT
+SUI_DEVSTACK_GRAPHQL_PORT=$SUI_DEVSTACK_GRAPHQL_PORT
+EOF
+}
+
+ensure_devstack_ports() {
   if [[ -n "${SUI_RPC_PORT:-}" && -z "${SUI_DEVSTACK_RPC_PORT:-}" ]]; then
     export SUI_DEVSTACK_RPC_PORT="$SUI_RPC_PORT"
   fi
@@ -108,6 +265,71 @@ with_sui_devstack_env() {
   fi
   if [[ -n "${SUI_GRAPHQL_PORT:-}" && -z "${SUI_DEVSTACK_GRAPHQL_PORT:-}" ]]; then
     export SUI_DEVSTACK_GRAPHQL_PORT="$SUI_GRAPHQL_PORT"
+  fi
+
+  load_persisted_ports
+
+  local existing=()
+  [[ -n "${SUI_DEVSTACK_RPC_PORT:-}" ]] && existing+=("$SUI_DEVSTACK_RPC_PORT")
+  [[ -n "${SUI_DEVSTACK_FAUCET_PORT:-}" ]] && existing+=("$SUI_DEVSTACK_FAUCET_PORT")
+  [[ -n "${SUI_DEVSTACK_GRAPHQL_PORT:-}" ]] && existing+=("$SUI_DEVSTACK_GRAPHQL_PORT")
+
+  if [[ -z "${SUI_DEVSTACK_RPC_PORT:-}" || -z "${SUI_DEVSTACK_FAUCET_PORT:-}" || -z "${SUI_DEVSTACK_GRAPHQL_PORT:-}" ]]; then
+    local generated
+    local generated_text
+    if (( ${#existing[@]} > 0 )); then
+      generated_text="$(select_free_ports "${existing[@]}")"
+    else
+      generated_text="$(select_free_ports)"
+    fi
+    read -r -a generated <<< "$generated_text"
+    if [[ -z "${SUI_DEVSTACK_RPC_PORT:-}" ]]; then
+      SUI_DEVSTACK_RPC_PORT="${generated[0]}"
+    fi
+    if [[ -z "${SUI_DEVSTACK_FAUCET_PORT:-}" ]]; then
+      SUI_DEVSTACK_FAUCET_PORT="${generated[1]}"
+    fi
+    if [[ -z "${SUI_DEVSTACK_GRAPHQL_PORT:-}" ]]; then
+      SUI_DEVSTACK_GRAPHQL_PORT="${generated[2]}"
+    fi
+  fi
+
+  require_valid_port SUI_DEVSTACK_RPC_PORT "$SUI_DEVSTACK_RPC_PORT"
+  require_valid_port SUI_DEVSTACK_FAUCET_PORT "$SUI_DEVSTACK_FAUCET_PORT"
+  require_valid_port SUI_DEVSTACK_GRAPHQL_PORT "$SUI_DEVSTACK_GRAPHQL_PORT"
+
+  export SUI_DEVSTACK_RPC_PORT
+  export SUI_DEVSTACK_FAUCET_PORT
+  export SUI_DEVSTACK_GRAPHQL_PORT
+  persist_ports
+}
+
+sui_stack_running() {
+  "$(sui_devstack_script)" status 2>/dev/null | grep -q 'state=running'
+}
+
+preflight_devstack_ports() {
+  if sui_stack_running; then
+    return 0
+  fi
+  if ! assert_ports_available "$SUI_DEVSTACK_RPC_PORT" "$SUI_DEVSTACK_FAUCET_PORT" "$SUI_DEVSTACK_GRAPHQL_PORT"; then
+    err "Selected Sui localnet ports are already in use:"
+    err "  RPC:     $SUI_DEVSTACK_RPC_PORT"
+    err "  Faucet:  $SUI_DEVSTACK_FAUCET_PORT"
+    err "  GraphQL: $SUI_DEVSTACK_GRAPHQL_PORT"
+    err "Set SUI_DEVSTACK_{RPC,FAUCET,GRAPHQL}_PORT or run devstack:reset to choose fresh ports."
+    exit 1
+  fi
+}
+
+with_sui_devstack_env() {
+  export SUI_DEVSTACK_COMPOSE_PROJECT="${SUI_DEVSTACK_COMPOSE_PROJECT:-pairmarket-devstack}"
+  export SUI_DEVSTACK_STATE_DIR="${SUI_DEVSTACK_STATE_DIR:-$STATE_DIR/sui-localnet/state}"
+  export SUI_DEVSTACK_LOGS_DIR="${SUI_DEVSTACK_LOGS_DIR:-$STATE_DIR/sui-localnet/logs}"
+
+  ensure_devstack_ports
+  if [[ "${1:-}" == "up" ]]; then
+    preflight_devstack_ports
   fi
 
   "$(sui_devstack_script)" "$@"
@@ -361,7 +583,7 @@ show_pairmarket_status() {
 
 reset_pairmarket_state() {
   log "Removing pairmarket state from $STATE_DIR"
-  rm -rf "$CLIENT_DIR" "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$PUBLISH_WORKDIR" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE"
+  rm -rf "$CLIENT_DIR" "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$PUBLISH_WORKDIR" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE" "$PORT_ENV_FILE"
 }
 
 case "${1:-}" in
