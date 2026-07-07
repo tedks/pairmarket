@@ -27,7 +27,8 @@ localnet/docker-compose.sui-localnet.yml
 `up`, `down`, `reset`, `status`, `logs`, and `env` commands instead of
 vendoring those behaviors.
 
-By default the wrapper searches for a sibling worktree at
+By default the wrapper searches for a sibling Sui 1.73 localnet worktree at
+`~/Projects/sui-devstack/agent/sui-173-localnet`, then falls back to
 `~/Projects/sui-devstack/master`. To use a different checkout or branch, point
 at it explicitly:
 
@@ -45,6 +46,11 @@ SUI_GRAPHQL_URL=http://127.0.0.1:9125/graphql
 ```
 
 Additional `SUI_DEVSTACK_*` keys are allowed and stay owned by `sui-devstack`.
+Pairmarket chooses free host ports when no explicit port override is present,
+then stores them in `.devstack/ports.env` so `deploy`, `status`, and web env
+generation keep talking to the same localnet. Generated ports come from
+`20000-29999` by default to stay out of the common Sui defaults and the usual
+Linux ephemeral port range.
 
 ## Commands
 
@@ -65,9 +71,9 @@ The generated env file contains pairmarket-prefixed app configuration:
 
 ```bash
 PAIRMARKET_NETWORK=localnet
-PAIRMARKET_SUI_RPC_URL=http://127.0.0.1:9000
-PAIRMARKET_SUI_FAUCET_URL=http://127.0.0.1:9123/gas
-PAIRMARKET_SUI_GRAPHQL_URL=http://127.0.0.1:9125/graphql
+PAIRMARKET_SUI_RPC_URL=http://127.0.0.1:<generated-rpc-port>
+PAIRMARKET_SUI_FAUCET_URL=http://127.0.0.1:<generated-faucet-port>/gas
+PAIRMARKET_SUI_GRAPHQL_URL=http://127.0.0.1:<generated-graphql-port>/graphql
 PAIRMARKET_SUI_CLIENT_CONFIG=/absolute/path/to/.devstack/sui-client/client.yaml
 PAIRMARKET_SUI_DEPLOYER_ADDRESS=...
 PAIRMARKET_MOVE_PACKAGE_ID=...
@@ -84,8 +90,8 @@ remote browsers can use an app served from another host:
 VITE_PAIRMARKET_NETWORK=localnet
 VITE_PAIRMARKET_SUI_RPC_URL=/sui-rpc
 VITE_PAIRMARKET_SUI_FAUCET_URL=/sui-faucet
-VITE_PAIRMARKET_DEVSTACK_RPC_TARGET=http://127.0.0.1:9000
-VITE_PAIRMARKET_DEVSTACK_FAUCET_TARGET=http://127.0.0.1:9123/gas
+VITE_PAIRMARKET_DEVSTACK_RPC_TARGET=http://127.0.0.1:<generated-rpc-port>
+VITE_PAIRMARKET_DEVSTACK_FAUCET_TARGET=http://127.0.0.1:<generated-faucet-port>/gas
 VITE_PAIRMARKET_MOVE_PACKAGE_ID=...
 VITE_PAIRMARKET_MOVE_CONFIG_ID=...
 VITE_PAIRMARKET_ENABLE_BURNER=0
@@ -108,6 +114,26 @@ SUI_DEVSTACK_RPC_PORT=9100 SUI_DEVSTACK_FAUCET_PORT=9223 \
   SUI_DEVSTACK_GRAPHQL_PORT=9225 \
   nix develop --command pnpm devstack:up
 ```
+
+Override the generated-port range with pairmarket wrapper variables:
+
+```bash
+PAIRMARKET_DEVSTACK_PORT_RANGE_START=20000 \
+PAIRMARKET_DEVSTACK_PORT_RANGE_END=29999 \
+  nix develop --command pnpm devstack:up
+```
+
+The chosen or overridden ports are persisted here:
+
+```text
+.devstack/ports.env
+```
+
+`devstack:up` preflights the selected host ports before asking Docker Compose
+to bind them. If a port is already occupied by another local stack, the command
+fails with the selected RPC/faucet/GraphQL ports instead of starting a half
+configured stack. Use `devstack:reset` to discard the persisted generated ports
+and choose a fresh set.
 
 ## Package Publish
 
