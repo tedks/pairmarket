@@ -27,6 +27,8 @@ import type {
 import { pairmarketMoveConfig, SUI_COIN_TYPE } from "./config.ts";
 import { loadLocalMarketMetadata } from "./metadata.ts";
 
+const SUI_PAGE_LIMIT = 50;
+
 type ChainState = {
   readonly state: AppState;
   readonly loading: boolean;
@@ -167,7 +169,7 @@ export function useChainAppState(baseState: AppState): ChainState {
           },
           cursor,
           order: "ascending",
-          limit: 100,
+          limit: SUI_PAGE_LIMIT,
           signal: abort.signal,
         });
         for (const event of events.data) {
@@ -180,7 +182,7 @@ export function useChainAppState(baseState: AppState): ChainState {
 
       if (profileIds.length === 0) return [];
       const objectPages = await Promise.all(
-        chunks([...new Set(profileIds)], 50).map((ids) =>
+        chunks([...new Set(profileIds)], SUI_PAGE_LIMIT).map((ids) =>
           client.multiGetObjects({
             ids,
             options: { showContent: true, showType: true },
@@ -216,7 +218,7 @@ export function useChainAppState(baseState: AppState): ChainState {
           },
           cursor,
           order: "ascending",
-          limit: 100,
+          limit: SUI_PAGE_LIMIT,
           signal: abort.signal,
         });
         for (const event of events.data) {
@@ -246,7 +248,7 @@ export function useChainAppState(baseState: AppState): ChainState {
           },
           cursor,
           order: "ascending",
-          limit: 100,
+          limit: SUI_PAGE_LIMIT,
           signal: abort.signal,
         });
         for (const event of events.data) {
@@ -299,7 +301,7 @@ export function useChainAppState(baseState: AppState): ChainState {
             MoveModule: { package: packageId, module: "market" },
           },
           options: { showContent: true, showType: true },
-          limit: 100,
+          limit: SUI_PAGE_LIMIT,
           signal: abort.signal,
         });
         for (const object of response.data) {
