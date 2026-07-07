@@ -9,7 +9,7 @@ type: feature
 component: web
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
+status: in_progress
 disposition:
 creation_time: 2026-07-07T01:00:55-00:00
 references: []
@@ -17,4 +17,8 @@ log_events:
 - time: 2026-07-07T01:00:55-00:00
   who: Ted Smith
   what: created
+  comment: ""
+- time: 2026-07-07T01:01:03-00:00
+  who: Ted Smith
+  what: started
   comment: ""
