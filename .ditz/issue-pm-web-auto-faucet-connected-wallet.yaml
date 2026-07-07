@@ -1,0 +1,20 @@
+id: pm-web-auto-faucet-connected-wallet
+title: Auto-fund connected localnet wallet from faucet
+desc: When a user connects a self-custody wallet on localnet, the frontend should
+  request faucet gas for that wallet automatically if the balance is empty or below
+  the app's minimum working balance. Keep the manual Account gas button as fallback,
+  avoid non-localnet/Twitter custody, and cover the behavior with tests so users do
+  not need to manually fund generated or fresh wallets.
+type: feature
+component: web
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-07T01:00:55-00:00
+references: []
+log_events:
+- time: 2026-07-07T01:00:55-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
