@@ -7,6 +7,11 @@ import {
 } from "@mysten/dapp-kit-react";
 import { getCustody, setCustody } from "../state/store.ts";
 import { nextSelfCustodyState } from "../self-custody.ts";
+import {
+  autoGasRequestForConnectedWallet,
+  maybeRequestLocalnetGas,
+  reserveAutoGasAttempt,
+} from "../sui/gas.ts";
 
 export function SelfCustodyBridge(): JSX.Element | null {
   const account = useCurrentAccount();
@@ -23,6 +28,25 @@ export function SelfCustodyBridge(): JSX.Element | null {
     });
     if (next !== null) setCustody(next);
   }, [account, connection.isConnected, network, wallet?.name]);
+
+  useEffect(() => {
+    const request = autoGasRequestForConnectedWallet({
+      custody: getCustody(),
+      connected: connection.isConnected && account !== null,
+      rawAddress: account?.address,
+      network,
+    });
+    if (request === undefined) return;
+
+    if (!reserveAutoGasAttempt(request)) return;
+
+    void maybeRequestLocalnetGas(request).catch((error: unknown) => {
+      console.warn(
+        "Unable to request localnet gas for connected wallet",
+        error,
+      );
+    });
+  }, [account, connection.isConnected, network]);
 
   return null;
 }
