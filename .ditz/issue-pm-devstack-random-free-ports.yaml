@@ -8,8 +8,8 @@ type: task
 component: devstack
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: in_progress
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-07-07T00:41:56-00:00
 references: []
 log_events:
@@ -21,3 +21,10 @@ log_events:
   who: Ted Smith
   what: started
   comment: ""
+- time: 2026-07-07T00:59:03-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Implemented in PR #20: pairmarket devstack now persists generated free
+    ports, preflights bind availability on up, prefers the Sui 1.73 shared devstack
+    worktree on tower0, and has runtime coverage for generated, explicit, partial
+    override, reset, collision, and upstream propagation behavior.'
