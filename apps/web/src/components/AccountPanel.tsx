@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CustodyState } from "@pairmarket/core";
 import type { AppState } from "../types.ts";
 import { formatAddress } from "../format.ts";
@@ -10,6 +11,7 @@ type Props = {
 
 export function AccountPanel({ state, custody }: Props): JSX.Element {
   const viewer = state.users.get(state.viewer);
+  const selfCustody = custody.kind === "self-custody" ? custody : undefined;
   return (
     <section className="account-panel">
       <header className="market-list-head">
@@ -36,6 +38,8 @@ export function AccountPanel({ state, custody }: Props): JSX.Element {
           </div>
         </div>
       </div>
+
+      <GasCard custody={selfCustody} />
 
       <div className="card">
         <h2 className="card-title">Custody</h2>
@@ -122,6 +126,139 @@ export function AccountPanel({ state, custody }: Props): JSX.Element {
       </div>
     </section>
   );
+}
+
+function GasCard({
+  custody,
+}: {
+  readonly custody: Extract<CustodyState, { kind: "self-custody" }> | undefined;
+}): JSX.Element {
+  const [balanceMist, setBalanceMist] = useState<bigint | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<string | undefined>(undefined);
+  const address = custody?.address;
+  const isLocalnet = custody?.network === "localnet";
+
+  const refreshBalance = useCallback(async () => {
+    if (address === undefined) {
+      setBalanceMist(undefined);
+      return;
+    }
+    const result = await suiRpc<{ totalBalance?: string }>("suix_getBalance", [
+      address,
+    ]);
+    setBalanceMist(BigInt(result.totalBalance ?? "0"));
+  }, [address]);
+
+  useEffect(() => {
+    setMessage(undefined);
+    setError(undefined);
+    void refreshBalance().catch((e) => {
+      setError(e instanceof Error ? e.message : String(e));
+    });
+  }, [refreshBalance]);
+
+  return (
+    <div className="card">
+      <h2 className="card-title">Gas</h2>
+      <div className="card-body">
+        {custody === undefined ? (
+          <p className="card-empty">
+            Connect a Sui wallet to request localnet gas.
+          </p>
+        ) : (
+          <>
+            <div className="kv">
+              <span className="kv-k">Balance</span>
+              <span className="kv-v">
+                {balanceMist === undefined
+                  ? "checking..."
+                  : formatSui(balanceMist)}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!isLocalnet || busy}
+              onClick={() => {
+                setBusy(true);
+                setMessage(undefined);
+                setError(undefined);
+                void (async () => {
+                  try {
+                    await requestGas(custody.address);
+                    await refreshBalance();
+                    setMessage("Gas requested from localnet faucet.");
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+            >
+              {busy ? "Requesting..." : "Request gas"}
+            </button>
+            {!isLocalnet ? (
+              <p className="card-empty">
+                Local faucet is only available on localnet.
+              </p>
+            ) : null}
+            {message ? <p className="card-empty">{message}</p> : null}
+            {error ? <p className="form-error">{error}</p> : null}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+async function suiRpc<T>(
+  method: string,
+  params: readonly unknown[],
+): Promise<T> {
+  const response = await fetch("/sui-rpc", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const payload = (await response.json()) as {
+    result?: T;
+    error?: { message?: string };
+  };
+  if (
+    !response.ok ||
+    payload.error !== undefined ||
+    payload.result === undefined
+  ) {
+    throw new Error(payload.error?.message ?? `Sui RPC ${method} failed`);
+  }
+  return payload.result;
+}
+
+async function requestGas(recipient: string): Promise<void> {
+  const response = await fetch("/sui-faucet/v2/gas", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ FixedAmountRequest: { recipient } }),
+  });
+  const payload = (await response.json()) as {
+    status?: "Success" | { Failure?: { internal?: string } };
+  };
+  if (!response.ok || payload.status !== "Success") {
+    const failure =
+      typeof payload.status === "object"
+        ? payload.status.Failure?.internal
+        : undefined;
+    throw new Error(failure ?? "Faucet request failed");
+  }
+}
+
+function formatSui(mist: bigint): string {
+  const whole = mist / 1_000_000_000n;
+  const frac = (mist % 1_000_000_000n).toString().padStart(9, "0");
+  return `${whole}.${frac.slice(0, 3)} SUI`;
 }
 
 function describeOwner(
