@@ -1,0 +1,20 @@
+id: pm-devstack-compose-project-isolation
+title: Decide whether pairmarket devstack should derive unique compose project names
+desc: 'PR #20 defaults pairmarket''s Sui RPC/faucet/GraphQL host ports to persisted
+  free ports, which avoids cross-project port collisions. Concurrent pairmarket worktrees
+  still share the default SUI_DEVSTACK_COMPOSE_PROJECT=pairmarket-devstack unless
+  callers override it. Decide whether the wrapper should derive a stable per-worktree
+  compose project name, or keep the explicit override requirement documented.'
+type: task
+component: devstack
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-07-07T00:58:43-00:00
+references: []
+log_events:
+- time: 2026-07-07T00:58:43-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
