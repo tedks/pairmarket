@@ -133,11 +133,13 @@ had been downed and forgotten. So:
   be purged.
 - **Purge before removing a worktree.** Removing the directory does not
   stop the containers or free the chain state they wrote.
-- Each worktree gets its own compose project by default
-  (`pairmarket-devstack` in `master`, `pairmarket-devstack-<worktree>`
-  elsewhere), so teardown in one worktree does not touch another's
-  stack. Do not set `SUI_DEVSTACK_COMPOSE_PROJECT` to a shared name
-  unless you mean to share the stack.
+- Each checkout gets its own compose project by default
+  (`pairmarket-devstack` in `master`, `pairmarket-devstack-<name>-<hash>`
+  elsewhere, recorded in `.devstack/compose-project` by `up`), so
+  teardown in one worktree does not touch another's stack.
+  `pnpm devstack:status` prints the name; put it in the hand-off when you
+  leave a stack behind. Do not set `SUI_DEVSTACK_COMPOSE_PROJECT` to a
+  shared name unless you mean to share the stack.
 
 <!-- ditz:onboard -->
 ## Issue tracking with ditz

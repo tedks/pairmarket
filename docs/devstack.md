@@ -151,23 +151,32 @@ with a pointer and removes nothing.
 
 Because `reset` and `purge` delete things, and `purge` hands a whole tree
 to upstream (which may finish the job as root), every deletion target is
-pinned before any destructive upstream command runs: `PAIRMARKET_DEVSTACK_DIR`,
+pinned before any destructive upstream command runs (the harmless
+`--help` probe of the upstream script comes first): `PAIRMARKET_DEVSTACK_DIR`,
 `PAIRMARKET_WEB_ENV_FILE`, and any `SUI_DEVSTACK_STATE_DIR` /
 `SUI_DEVSTACK_LOGS_DIR` you exported are each resolved to an absolute
 canonical path (a relative value is taken against your current directory,
 and a path that does not exist yet is fine), their final component must not
-be a symlink, and the result must lie strictly inside this checkout (the web
-env file may also live inside the state directory). The canonical path is
+be a symlink, an existing state or upstream directory must be a directory
+and an existing web env file a regular file, and the result must lie
+strictly inside this checkout (the web env file may also live inside the
+state directory). The canonical path is
 what gets deleted and what upstream receives, whichever directory you ran
 the command from. Anything else is refused with nothing removed; clean up
 external state yourself.
 
 The compose project name defaults to `pairmarket-devstack` in the `master`
-worktree and `pairmarket-devstack-<worktree>` elsewhere (the worktree
-directory name with the `pairmarket-` prefix dropped), so two worktrees'
-stacks and their `pgdata` volumes do not share a project and one worktree's
-`down`/`reset`/`purge` cannot tear down another's. `SUI_DEVSTACK_COMPOSE_PROJECT`
-overrides it; `devstack:status` prints the name in use.
+(or `main`) worktree and `pairmarket-devstack-<name>-<hash>` elsewhere:
+the worktree directory name with the `pairmarket-` prefix dropped, plus the
+first six hex digits of a SHA-256 of the canonical checkout path, so two
+worktrees, or two clones with the same directory name, never share a project
+or a `pgdata` volume, and one checkout's `down`/`reset`/`purge` cannot tear
+down another's. `devstack:up` records the name it used in
+`.devstack/compose-project`; every other command reads it back, so a moved
+worktree or a later change to this rule cannot orphan a running stack.
+`SUI_DEVSTACK_COMPOSE_PROJECT` overrides both, and `devstack:status` prints
+the name in use. Stacks started before this rule live under
+`pairmarket-devstack` and are reachable from `master` or with the override.
 
 Override ports with the upstream variables:
 
@@ -194,8 +203,11 @@ The chosen or overridden ports are persisted here:
 `devstack:up` preflights the selected host ports before asking Docker Compose
 to bind them. If a port is already occupied by another local stack, the command
 fails with the selected RPC/faucet/GraphQL ports instead of starting a half
-configured stack. `devstack:reset` keeps the persisted ports; delete
-`.devstack/ports.env` (or run `devstack:purge`) to choose a fresh set.
+configured stack. `devstack:reset` keeps the persisted ports (unless you
+override them in the environment, which every command writes back to
+`ports.env`); delete `.devstack/ports.env` (or run `devstack:purge`) to
+choose a fresh set. Only `devstack:up` creates `.devstack/`; after a purge,
+`status` and `down` leave it gone.
 
 ## Package Publish
 

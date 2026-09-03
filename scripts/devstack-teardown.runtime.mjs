@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -12,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 // Exercises the teardown ladder of scripts/devstack.sh against a fake
 // upstream sui-localnet.sh (selected via SUI_DEVSTACK_SCRIPT), so no docker
@@ -34,12 +36,14 @@ import { spawnSync } from "node:child_process";
 //
 // purge only accepts a state root strictly inside the checkout, so the
 // scenario directories live under the repo as .devstack-test-* (ignored by
-// git) rather than under the system temp dir.
+// git) rather than under the system temp dir. Path spellings that must
+// reach bash verbatim (`..`, trailing slashes) are built by string
+// concatenation, never with path.join(), which would normalize them away.
 
 const root = resolve(import.meta.dirname, "..");
 const script = join(root, "scripts/devstack.sh");
 
-// Mirrors default_compose_project() in scripts/devstack.sh.
+// Mirrors derived_compose_project() in scripts/devstack.sh.
 function expectedComposeProject() {
   const base = basename(root);
   if (base === "master" || base === "main") return "pairmarket-devstack";
@@ -47,7 +51,11 @@ function expectedComposeProject() {
     .replace(/^pairmarket-/, "")
     .toLowerCase()
     .replaceAll(/[^a-z0-9_-]/g, "-");
-  return `pairmarket-devstack-${suffix || "worktree"}`;
+  const hash = createHash("sha256")
+    .update(`${realpathSync(root)}\n`)
+    .digest("hex")
+    .slice(0, 6);
+  return `pairmarket-devstack-${suffix || "worktree"}-${hash}`;
 }
 
 const PORTS = {
@@ -108,6 +116,7 @@ case "\${1:-}" in
     guarded_rm "$@"
     ;;
   status)
+    printf 'project=%s\\n' "\${SUI_DEVSTACK_COMPOSE_PROJECT:-}"
     printf 'container=none state=stopped\\n'
     printf 'rpc=not_ready\\n'
     ;;
@@ -150,6 +159,7 @@ const KEPT_BY_RESET = [
   "sui-client/sui.keystore",
   "sui-client/deployer-address.json",
   "ports.env",
+  "compose-project",
 ];
 const LEGACY_STATE = "docker/sui-state/stale";
 const EVERYTHING = [
@@ -159,7 +169,7 @@ const EVERYTHING = [
   LEGACY_STATE,
 ];
 
-function seedState(stateDir, webEnv) {
+function seedState(stateDir, webEnv, { project = "seeded-project" } = {}) {
   const files = {
     "sui-client/client.yaml": "keystore: {}\n",
     "sui-client/sui.keystore": "[]\n",
@@ -168,6 +178,7 @@ function seedState(stateDir, webEnv) {
       .map(([key, value]) => `${key}=${value}`)
       .join("\n")
       .concat("\n"),
+    "compose-project": `${project}\n`,
     "package-id.txt": "0x1\n",
     "config-id.txt": "0x2\n",
     "admin-cap-id.txt": "0x3\n",
@@ -231,14 +242,14 @@ const cleanups = [];
 
 function scenario(
   name,
-  { supportsPurge = true, parent = root, dirName = "devstack" } = {},
+  { supportsPurge = true, parent = root, dirName = "devstack", project } = {},
 ) {
   const dir = mkdtempSync(join(parent, `.devstack-test-${name}-`));
   cleanups.push(dir);
   const stateDir = join(dir, dirName);
   const webEnv = join(dir, "web.env.local");
   const upstream = makeFakeUpstream(dir, { supportsPurge });
-  seedState(stateDir, webEnv);
+  seedState(stateDir, webEnv, { project });
   const env = {
     PAIRMARKET_DEVSTACK_DIR: stateDir,
     PAIRMARKET_WEB_ENV_FILE: webEnv,
@@ -259,7 +270,11 @@ function assertRefused(result, pattern, { stateDir, webEnv, upstream }) {
 
 try {
   {
-    const { stateDir, webEnv, upstream, env } = scenario("down");
+    // No persisted project: the derived per-worktree default is used.
+    const { stateDir, webEnv, upstream, env } = scenario("down", {
+      project: null,
+    });
+    rmSync(join(stateDir, "compose-project"));
     const result = runDevstack(env, "down");
     assert.equal(result.status, 0, result.message);
     const log = captured(upstream.capture);
@@ -267,20 +282,50 @@ try {
     assert.match(
       log,
       new RegExp(`^project=${escapeRe(expectedComposeProject())}$`, "m"),
-      "the compose project defaults per worktree",
+      "the compose project defaults per worktree (name plus path hash)",
     );
-    assertAll(stateDir, EVERYTHING, true, "down");
+    assertAll(
+      stateDir,
+      EVERYTHING.filter((f) => f !== "compose-project"),
+      true,
+      "down",
+    );
     assert.ok(existsSync(webEnv), "down kept the web env file");
+    assert.equal(
+      existsSync(join(stateDir, "compose-project")),
+      false,
+      "down does not persist the project (only up does)",
+    );
   }
 
   {
-    const { upstream, env } = scenario("project-override");
-    const result = runDevstack(
+    // A project recorded by `up` wins over the derivation; an explicit env
+    // override wins over both.
+    const { upstream, env } = scenario("project-persisted", {
+      project: "recorded-by-up",
+    });
+    let result = runDevstack(env, "down");
+    assert.equal(result.status, 0, result.message);
+    assert.match(captured(upstream.capture), /^project=recorded-by-up$/m);
+    result = runDevstack(
       { ...env, SUI_DEVSTACK_COMPOSE_PROJECT: "custom-project" },
       "down",
     );
     assert.equal(result.status, 0, result.message);
     assert.match(captured(upstream.capture), /^project=custom-project$/m);
+  }
+
+  {
+    // A tampered compose-project file is ignored rather than passed to
+    // compose.
+    const { stateDir, upstream, env } = scenario("project-garbage");
+    writeFileSync(join(stateDir, "compose-project"), "Bad Name; rm\n");
+    const result = runDevstack(env, "down");
+    assert.equal(result.status, 0, result.message);
+    assert.match(
+      captured(upstream.capture),
+      new RegExp(`^project=${escapeRe(expectedComposeProject())}$`, "m"),
+    );
   }
 
   {
@@ -326,10 +371,10 @@ try {
       log,
       new RegExp(
         `^call argc=2\\narg=purge\\narg=${escapeRe(stateDir)}\\n` +
-          `rpc= faucet= graphql=\\nproject=.*\\ncwd=${escapeRe(root)}$`,
+          `rpc= faucet= graphql=\\nproject=seeded-project\\ncwd=${escapeRe(root)}$`,
         "m",
       ),
-      "purge hands exactly the state root to upstream purge, allocates no ports, runs from the checkout root",
+      "purge hands exactly the state root to upstream purge, allocates no ports, uses the recorded project, runs from the checkout root",
     );
     assert.equal(existsSync(stateDir), false, "purge removed the state root");
     assert.equal(existsSync(webEnv), false, "purge removed the web env file");
@@ -337,18 +382,36 @@ try {
       existsSync(dir),
       "purge removed only the state root, not its parent",
     );
+
+    // After a purge, confirming it is gone must not bring anything back.
+    const status = runDevstack(env, "status");
+    assert.equal(status.status, 0, status.message);
+    assert.equal(
+      existsSync(stateDir),
+      false,
+      "status after purge does not recreate the state dir",
+    );
+    const down = runDevstack(env, "down");
+    assert.equal(down.status, 0, down.message);
+    assert.equal(
+      existsSync(stateDir),
+      false,
+      "down after purge does not recreate the state dir",
+    );
   }
 
   {
     // A relative PAIRMARKET_DEVSTACK_DIR is resolved against the caller's
     // cwd, and the canonical absolute path is what upstream receives, so
-    // the wrapper's own cd cannot change what gets deleted.
-    const { dir, stateDir, webEnv, upstream, env } = scenario("relative");
-    const relative = `${basename(dir)}/devstack`;
+    // the wrapper's own cd to the checkout root cannot change what gets
+    // deleted. Run from scripts/ so the relative spelling only means the
+    // right thing from there.
+    const { stateDir, webEnv, upstream, env } = scenario("relative");
+    const relative = `../${basename(resolve(stateDir, ".."))}/devstack`;
     const result = runDevstack(
       { ...env, PAIRMARKET_DEVSTACK_DIR: relative },
       "purge",
-      root,
+      join(root, "scripts"),
     );
     assert.equal(result.status, 0, result.message);
     assert.match(
@@ -468,13 +531,13 @@ try {
 
   {
     const s = scenario("checkout-root");
-    for (const spelling of [root, `${root}/`, join(root, "scripts/..")]) {
+    for (const spelling of [root, `${root}/`, `${root}/scripts/..`]) {
       const result = runDevstack(
         { ...s.env, PAIRMARKET_DEVSTACK_DIR: spelling },
         "purge",
       );
       assert.equal(result.status, 1, `${spelling}: ${result.message}`);
-      assert.match(result.stderr, /outside this checkout/, spelling);
+      assert.match(result.stderr, /it is the checkout itself/, spelling);
     }
     assert.doesNotMatch(captured(s.upstream.capture), /^arg=purge$/m);
     assertAll(s.stateDir, EVERYTHING, true, "checkout root as state dir");
@@ -485,16 +548,37 @@ try {
   }
 
   {
+    // A state root that exists but is a regular file is refused (upstream
+    // would otherwise be handed a file as a "directory").
+    const s = scenario("file-root");
+    const file = join(s.dir, "not-a-dir");
+    writeFileSync(file, "x\n");
+    for (const command of ["reset", "purge"]) {
+      const result = runDevstack(
+        { ...s.env, PAIRMARKET_DEVSTACK_DIR: file },
+        command,
+      );
+      assert.equal(result.status, 1, `${command}: ${result.message}`);
+      assert.match(result.stderr, /exists but is not a directory/);
+    }
+    assert.ok(existsSync(file));
+    assert.doesNotMatch(captured(s.upstream.capture), /^arg=(reset|purge)$/m);
+  }
+
+  {
     // The web env override must stay inside the checkout or the state dir,
     // for reset as well as purge, and a traversal through a directory that
-    // does not exist yet must not slip through.
+    // does not exist yet must not slip through. The traversal string is
+    // built by hand so the `..` segments reach bash.
     const outside = mkdtempSync(join(tmpdir(), "pairmarket-devstack-webenv-"));
     cleanups.push(outside);
     const stray = join(outside, "precious.env");
     writeFileSync(stray, "do not delete\n");
     for (const command of ["reset", "purge"]) {
       const s = scenario(`webenv-${command}`);
-      const traversal = join(s.stateDir, "missing/../../../../..", stray);
+      const ups = "../".repeat(s.stateDir.split("/").length);
+      const traversal = `${s.stateDir}/missing/${ups}${stray.slice(1)}`;
+      assert.match(traversal, /\/missing\/\.\.\//, "traversal keeps its ..");
       for (const spelling of [stray, traversal]) {
         const result = runDevstack(
           { ...s.env, PAIRMARKET_WEB_ENV_FILE: spelling },
@@ -512,24 +596,32 @@ try {
 
   {
     // Exported upstream dirs are deletion targets too; outside the checkout
-    // they are refused before upstream is called.
+    // they are refused before upstream is called, for both variables.
     const outside = mkdtempSync(join(tmpdir(), "pairmarket-devstack-updirs-"));
     cleanups.push(outside);
     mkdirSync(join(outside, "state/db"), { recursive: true });
+    mkdirSync(join(outside, "logs"), { recursive: true });
     writeFileSync(join(outside, "state/db/CURRENT"), "x\n");
+    writeFileSync(join(outside, "logs/sui.log"), "x\n");
     for (const command of ["reset", "purge"]) {
-      const s = scenario(`updirs-${command}`);
-      const result = runDevstack(
-        { ...s.env, SUI_DEVSTACK_STATE_DIR: join(outside, "state") },
-        command,
-      );
-      assertRefused(
-        result,
-        /SUI_DEVSTACK_STATE_DIR .*outside this checkout/,
-        s,
-      );
-      assert.ok(existsSync(join(outside, "state/db/CURRENT")));
+      for (const [variable, sub] of [
+        ["SUI_DEVSTACK_STATE_DIR", "state"],
+        ["SUI_DEVSTACK_LOGS_DIR", "logs"],
+      ]) {
+        const s = scenario(`updirs-${command}-${sub}`);
+        const result = runDevstack(
+          { ...s.env, [variable]: join(outside, sub) },
+          command,
+        );
+        assertRefused(
+          result,
+          new RegExp(`${variable} .*outside this checkout`),
+          s,
+        );
+      }
     }
+    assert.ok(existsSync(join(outside, "state/db/CURRENT")));
+    assert.ok(existsSync(join(outside, "logs/sui.log")));
   }
 
   {

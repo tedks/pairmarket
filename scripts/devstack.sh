@@ -47,10 +47,12 @@ Environment:
   SUI_DEVSTACK_HOME             Path to sui-devstack checkout
   SUI_DEVSTACK_SCRIPT           Override path to localnet/sui-localnet.sh
   SUI_DEVSTACK_COMPOSE_PROJECT  Compose project name (default: pairmarket-devstack in
-                                the master worktree, pairmarket-devstack-<worktree>
-                                elsewhere)
-  PAIRMARKET_DEVSTACK_DIR       Override state dir (default: .devstack)
-  PAIRMARKET_WEB_ENV_FILE       Override web env path (default: apps/web/.env.local)
+                                the master worktree, pairmarket-devstack-<name>-<hash>
+                                elsewhere; `up` records it in .devstack/compose-project)
+  PAIRMARKET_DEVSTACK_DIR       Override state dir (default: .devstack; reset/purge
+                                require it inside this checkout, not a symlink)
+  PAIRMARKET_WEB_ENV_FILE       Override web env path (default: apps/web/.env.local;
+                                same bounds, or inside the state dir)
   SUI_DEVSTACK_RPC_PORT         Override local RPC port (otherwise generated)
   SUI_DEVSTACK_FAUCET_PORT      Override local faucet port (otherwise generated)
   SUI_DEVSTACK_GRAPHQL_PORT     Override local GraphQL port (otherwise generated)
@@ -308,7 +310,12 @@ ensure_devstack_ports() {
   export SUI_DEVSTACK_RPC_PORT
   export SUI_DEVSTACK_FAUCET_PORT
   export SUI_DEVSTACK_GRAPHQL_PORT
-  persist_ports
+  # Only `up` creates the state dir; after a purge, `status`/`down` must not
+  # bring .devstack/ports.env back. When the dir already exists, persisting
+  # keeps env-overridden ports consistent for the next verb, as before.
+  if [[ "${1:-}" == up || -d "$STATE_DIR" ]]; then
+    persist_ports
+  fi
 }
 
 sui_stack_running() {
@@ -330,7 +337,8 @@ preflight_devstack_ports() {
 }
 
 with_sui_devstack_env() {
-  export SUI_DEVSTACK_COMPOSE_PROJECT="${SUI_DEVSTACK_COMPOSE_PROJECT:-$(default_compose_project)}"
+  SUI_DEVSTACK_COMPOSE_PROJECT="$(resolve_compose_project)"
+  export SUI_DEVSTACK_COMPOSE_PROJECT
   export SUI_DEVSTACK_STATE_DIR="${SUI_DEVSTACK_STATE_DIR:-$STATE_DIR/sui-localnet/state}"
   export SUI_DEVSTACK_LOGS_DIR="${SUI_DEVSTACK_LOGS_DIR:-$STATE_DIR/sui-localnet/logs}"
 
@@ -341,11 +349,12 @@ with_sui_devstack_env() {
       # and compose does not need the port values to tear a project down.
       ;;
     up)
-      ensure_devstack_ports
+      persist_compose_project "$SUI_DEVSTACK_COMPOSE_PROJECT"
+      ensure_devstack_ports up
       preflight_devstack_ports
       ;;
     *)
-      ensure_devstack_ports
+      ensure_devstack_ports "${1:-}"
       ;;
   esac
 
@@ -468,6 +477,10 @@ ensure_client() {
   client switch --env local --address "$(deployer_address)" >/dev/null
 }
 
+# Funding must run before any publish after a `reset`: sui-client/ survives
+# the re-genesis and client.yaml still carries the old chain_id for the
+# `local` env; `sui client faucet` refreshes it from the RPC (verified by
+# publishing against two force-regenesis chains with one keystore).
 fund_deployer() {
   local address
   address="$(deployer_address)"
@@ -647,11 +660,13 @@ lexical_path() {
   printf '%s\n' "$p"
 }
 
-# bounded_target WHAT RAW [ALSO]: print the canonical form of RAW, or exit 1
-# with a message naming WHAT. ALSO is an extra canonical directory the
-# target may live under besides the checkout.
+# bounded_target WHAT KIND RAW [ALSO]: print the canonical form of RAW, or
+# exit 1 with a message naming WHAT. KIND is `dir` or `file`: if the target
+# exists it must be of that kind (a regular file handed to upstream `purge`
+# as a "directory" would still be deleted). ALSO is an extra canonical
+# directory the target may live under besides the checkout.
 bounded_target() {
-  local what="$1" raw="$2" also="${3:-}" root lexical canon
+  local what="$1" kind="$2" raw="$3" also="${4:-}" root lexical canon
   root="$(canonical_path_m "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
   if ! lexical="$(lexical_path "$raw")"; then
     err "Refusing to touch $what ($raw): cannot resolve it (GNU realpath required)."
@@ -665,6 +680,12 @@ bounded_target() {
     err "Refusing to touch $what ($raw): cannot canonicalize it (GNU readlink required)."
     exit 1
   fi
+  if [[ -e "$canon" ]]; then
+    case "$kind" in
+      dir)  [[ -d "$canon" ]] || { err "Refusing to touch $what ($raw): exists but is not a directory."; exit 1; } ;;
+      file) [[ -f "$canon" ]] || { err "Refusing to touch $what ($raw): exists but is not a regular file."; exit 1; } ;;
+    esac
+  fi
   if [[ "$canon" == "$root"/* ]]; then
     printf '%s\n' "$canon"
     return 0
@@ -673,34 +694,41 @@ bounded_target() {
     printf '%s\n' "$canon"
     return 0
   fi
-  err "Refusing to touch $what ($raw): it resolves to $canon, outside this checkout ($root)."
+  if [[ "$canon" == "$root" ]]; then
+    err "Refusing to touch $what ($raw): it is the checkout itself ($root)."
+  else
+    err "Refusing to touch $what ($raw): it resolves to $canon, outside this checkout ($root)."
+  fi
   exit 1
 }
 
 # Pin every path reset/purge will delete or hand upstream: the state root,
 # the web env file, and any SUI_DEVSTACK_STATE_DIR / SUI_DEVSTACK_LOGS_DIR
 # the caller exported (upstream deletes those too). Rewrites the globals to
-# their canonical forms.
+# their canonical forms and recomputes everything derived from them.
 bound_teardown_targets() {
-  STATE_DIR="$(bounded_target PAIRMARKET_DEVSTACK_DIR "$STATE_DIR")" || exit 1
-  WEB_ENV_FILE="$(bounded_target PAIRMARKET_WEB_ENV_FILE "$WEB_ENV_FILE" "$STATE_DIR")" || exit 1
+  STATE_DIR="$(bounded_target PAIRMARKET_DEVSTACK_DIR dir "$STATE_DIR")" || exit 1
+  WEB_ENV_FILE="$(bounded_target PAIRMARKET_WEB_ENV_FILE file "$WEB_ENV_FILE" "$STATE_DIR")" || exit 1
   if [[ -n "${SUI_DEVSTACK_STATE_DIR:-}" ]]; then
-    SUI_DEVSTACK_STATE_DIR="$(bounded_target SUI_DEVSTACK_STATE_DIR "$SUI_DEVSTACK_STATE_DIR")" || exit 1
+    SUI_DEVSTACK_STATE_DIR="$(bounded_target SUI_DEVSTACK_STATE_DIR dir "$SUI_DEVSTACK_STATE_DIR")" || exit 1
     export SUI_DEVSTACK_STATE_DIR
   fi
   if [[ -n "${SUI_DEVSTACK_LOGS_DIR:-}" ]]; then
-    SUI_DEVSTACK_LOGS_DIR="$(bounded_target SUI_DEVSTACK_LOGS_DIR "$SUI_DEVSTACK_LOGS_DIR")" || exit 1
+    SUI_DEVSTACK_LOGS_DIR="$(bounded_target SUI_DEVSTACK_LOGS_DIR dir "$SUI_DEVSTACK_LOGS_DIR")" || exit 1
     export SUI_DEVSTACK_LOGS_DIR
   fi
-  # Derived paths follow the (possibly rewritten) state root.
-  PUBLISH_WORKDIR="$STATE_DIR/publish-workdir"
+  CLIENT_DIR="$STATE_DIR/sui-client"
+  CLIENT_CONFIG="$CLIENT_DIR/client.yaml"
+  ADDRESS_JSON="$CLIENT_DIR/deployer-address.json"
+  LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
+  PORT_ENV_FILE="$STATE_DIR/ports.env"
   PUBLISH_JSON="$STATE_DIR/publish-output.json"
   PUBFILE="$STATE_DIR/Published.localnet.toml"
   PACKAGE_ID_FILE="$STATE_DIR/package-id.txt"
   CONFIG_ID_FILE="$STATE_DIR/config-id.txt"
   ADMIN_CAP_ID_FILE="$STATE_DIR/admin-cap-id.txt"
-  LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
-  PORT_ENV_FILE="$STATE_DIR/ports.env"
+  PUBLISH_WORKDIR="$STATE_DIR/publish-workdir"
+  COMPOSE_PROJECT_FILE="$STATE_DIR/compose-project"
 }
 
 # purge: nothing survives. The whole state root goes to upstream purge as an
@@ -736,22 +764,62 @@ purge_pairmarket_state() {
   rm -f -- "$WEB_ENV_FILE" || { err "Could not remove $WEB_ENV_FILE"; return 1; }
 }
 
-# Default compose project: `pairmarket-devstack` for the master worktree,
-# `pairmarket-devstack-<worktree>` elsewhere, so two worktrees' stacks (and
-# their pgdata volumes) do not share a project and one worktree's
-# down/reset/purge cannot tear down another's. SUI_DEVSTACK_COMPOSE_PROJECT
-# overrides it.
-default_compose_project() {
-  local base
+# --- compose project ------------------------------------------------------
+#
+# Every worktree used to share the compose project `pairmarket-devstack`, so
+# down/reset/purge in one worktree removed another worktree's containers and
+# pgdata volume. The default is now per checkout:
+#
+#   master/main worktree   pairmarket-devstack           (unchanged, so stacks
+#                                                         started before this
+#                                                         rule stay reachable)
+#   any other checkout     pairmarket-devstack-<name>-<hash6>
+#
+# where <name> is the directory name minus a `pairmarket-` prefix, lowercased
+# and sanitized to compose's charset, and <hash6> is the first six hex digits
+# of the SHA-256 of the canonical checkout path, so two clones with the same
+# directory name (or names that sanitize alike) still get distinct projects.
+#
+# `up` writes the name it used to .devstack/compose-project; every other verb
+# reads it back, so a later change to this rule, or a moved worktree, cannot
+# orphan a running stack. An explicit SUI_DEVSTACK_COMPOSE_PROJECT wins over
+# both. `status` prints the name in use.
+COMPOSE_PROJECT_FILE="$STATE_DIR/compose-project"
+
+derived_compose_project() {
+  local base root hash
   base="$(basename -- "$PROJECT_ROOT")"
   case "$base" in
-    master|main) printf 'pairmarket-devstack\n' ;;
-    *)
-      base="${base#pairmarket-}"
-      base="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
-      printf 'pairmarket-devstack-%s\n' "${base:-worktree}"
-      ;;
+    master|main) printf 'pairmarket-devstack\n'; return 0 ;;
   esac
+  root="$(canonical_path_m "$PROJECT_ROOT" 2>/dev/null || printf '%s' "$PROJECT_ROOT")"
+  hash="$( { sha256sum 2>/dev/null || shasum -a 256; } <<< "$root" | cut -c1-6)"
+  base="${base#pairmarket-}"
+  base="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
+  printf 'pairmarket-devstack-%s-%s\n' "${base:-worktree}" "${hash:-000000}"
+}
+
+persisted_compose_project() {
+  local name
+  [[ -f "$COMPOSE_PROJECT_FILE" ]] || return 1
+  IFS= read -r name < "$COMPOSE_PROJECT_FILE" || true
+  [[ "$name" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || return 1
+  printf '%s\n' "$name"
+}
+
+resolve_compose_project() {
+  if [[ -n "${SUI_DEVSTACK_COMPOSE_PROJECT:-}" ]]; then
+    printf '%s\n' "$SUI_DEVSTACK_COMPOSE_PROJECT"
+  elif persisted_compose_project; then
+    :
+  else
+    derived_compose_project
+  fi
+}
+
+persist_compose_project() {
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$1" > "$COMPOSE_PROJECT_FILE"
 }
 
 case "${1:-}" in
