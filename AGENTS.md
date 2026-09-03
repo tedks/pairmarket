@@ -108,6 +108,39 @@ ExecPlans for non-trivial work follow the format in
   invariants — pick in the design doc with explicit tradeoffs, not by
   default.
 
+## Devstack lifecycle and cleanup
+
+`scripts/devstack.sh` (via `pnpm devstack:*`) has three teardown verbs that
+differ in what survives; see [docs/devstack.md](docs/devstack.md#teardown).
+
+- `down` keeps everything. `up` resumes the same chain and published
+  package. Use it between sessions on the same task.
+- `reset` starts over on a fresh chain: chain state, logs, publish output
+  and generated env files go; the deployer key and generated ports stay.
+- `purge` removes the whole `.devstack/` tree and `apps/web/.env.local`.
+  Nothing survives.
+
+A downed devstack still holds gigabytes of RocksDB chain state, and nothing
+reclaims it for you: tower0 ran out of disk on 2026-09-03 on devstacks that
+had been downed and forgotten. So:
+
+- **Purge when you are done.** When the task you were spawned for no longer
+  needs the devstack, run `pnpm devstack:purge` before landing the plane.
+  Default to `purge`, not `down`.
+- **Leave a stack behind only on purpose.** Do it when the operator asked
+  for it or the next session clearly needs the same chain, and say so in
+  the hand-off: worktree path, compose project, and that it is waiting to
+  be purged.
+- **Purge before removing a worktree.** Removing the directory does not
+  stop the containers or free the chain state they wrote.
+- Each checkout gets its own compose project by default
+  (`pairmarket-devstack` in `master`, `pairmarket-devstack-<name>-<hash>`
+  elsewhere, recorded in `.devstack/compose-project` by `up`), so
+  teardown in one worktree does not touch another's stack.
+  `pnpm devstack:status` prints the name; put it in the hand-off when you
+  leave a stack behind. Do not set `SUI_DEVSTACK_COMPOSE_PROJECT` to a
+  shared name unless you mean to share the stack.
+
 <!-- ditz:onboard -->
 ## Issue tracking with ditz
 

@@ -2,6 +2,7 @@
 /result-*
 .direnv/
 .devstack/
+.devstack-test-*/
 apps/web/.env.local
 node_modules/
 dist/
