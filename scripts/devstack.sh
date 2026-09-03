@@ -793,10 +793,20 @@ derived_compose_project() {
     master|main) printf 'pairmarket-devstack\n'; return 0 ;;
   esac
   root="$(canonical_path_m "$PROJECT_ROOT" 2>/dev/null || printf '%s' "$PROJECT_ROOT")"
-  hash="$( { sha256sum 2>/dev/null || shasum -a 256; } <<< "$root" | cut -c1-6)"
+  # No hash tool means no per-checkout isolation; refuse with a pointer
+  # rather than fall back to a shared suffix.
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash="$(sha256sum <<< "$root" | cut -c1-6)"
+  elif command -v shasum >/dev/null 2>&1; then
+    hash="$(shasum -a 256 <<< "$root" | cut -c1-6)"
+  else
+    err "Cannot derive the compose project: neither sha256sum nor shasum is available."
+    err "Set SUI_DEVSTACK_COMPOSE_PROJECT explicitly."
+    exit 1
+  fi
   base="${base#pairmarket-}"
   base="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
-  printf 'pairmarket-devstack-%s-%s\n' "${base:-worktree}" "${hash:-000000}"
+  printf 'pairmarket-devstack-%s-%s\n' "${base:-worktree}" "$hash"
 }
 
 persisted_compose_project() {
