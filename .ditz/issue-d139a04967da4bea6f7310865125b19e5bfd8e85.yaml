@@ -1,0 +1,26 @@
+id: d139a04967da4bea6f7310865125b19e5bfd8e85
+title: Run the real devstack reset/purge cycle on tower0
+desc: 'PR #22 changed reset to keep .devstack/sui-client/ and ports.env across a re-genesis,
+  and added purge (whole .devstack tree via upstream sui-localnet.sh purge). Both
+  are covered by fake-upstream runtime tests and, for the upstream removal helper,
+  by a real-daemon scratch test on tower0 (root-owned files, compose down -v with
+  no containers). What is NOT yet proven against a real chain: (1) up -> deploy ->
+  reset -> up -> deploy with the retained keystore and ports (client.yaml is rewritten
+  with the RPC URL on up, the faucet re-funds the same address; reasoned through,
+  not run); (2) up -> purge with root-owned files from the real sui-localnet container.
+  tower0 currently has no sui-devstack/sui-localnet image (pruned during the 2026-09-03
+  disk cleanup), so this needs an image build first (~1h+). Run both cycles in a scratch
+  worktree with SUI_DEVSTACK_COMPOSE_PROJECT set to something unique, then close this.'
+type: task
+component: devstack
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-09-03T22:32:31-00:00
+references: []
+log_events:
+- time: 2026-09-03T22:32:31-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
