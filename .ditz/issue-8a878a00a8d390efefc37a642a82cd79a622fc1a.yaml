@@ -1,0 +1,23 @@
+id: 8a878a00a8d390efefc37a642a82cd79a622fc1a
+title: Default SUI_DEVSTACK_COMPOSE_PROJECT per worktree
+desc: 'scripts/devstack.sh defaults the compose project to ''pairmarket-devstack''
+  for every worktree, so devstack:down/reset/purge in one worktree stops the containers
+  (and removes the pgdata volume) of a devstack started from another, even though
+  their .devstack/ trees and generated ports are separate. Derive the default from
+  the worktree path (or PAIRMARKET_DEVSTACK_DIR) so two worktrees can run devstacks
+  side by side without an explicit SUI_DEVSTACK_COMPOSE_PROJECT. Surfaced while adding
+  devstack:purge in PR #22; documented as a caveat in AGENTS.md and docs/devstack.md
+  until fixed.'
+type: feature
+component: devstack
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-09-03T22:18:52-00:00
+references: []
+log_events:
+- time: 2026-09-03T22:18:52-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
