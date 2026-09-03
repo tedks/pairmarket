@@ -9,7 +9,7 @@ CLIENT_DIR="$STATE_DIR/sui-client"
 CLIENT_CONFIG="$CLIENT_DIR/client.yaml"
 ADDRESS_JSON="$CLIENT_DIR/deployer-address.json"
 LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
-WEB_ENV_FILE="$PROJECT_ROOT/apps/web/.env.local"
+WEB_ENV_FILE="${PAIRMARKET_WEB_ENV_FILE:-$PROJECT_ROOT/apps/web/.env.local}"
 PORT_ENV_FILE="$STATE_DIR/ports.env"
 PUBLISH_JSON="$STATE_DIR/publish-output.json"
 PUBFILE="$STATE_DIR/Published.localnet.toml"
@@ -37,13 +37,18 @@ Commands:
   status   Show upstream localnet and pairmarket deploy status
   logs     Tail upstream Sui Localnet logs
   env      Print the generated pairmarket environment file
-  down     Stop upstream Sui Localnet, preserving state
-  reset    Stop upstream Sui Localnet and remove pairmarket local state
+  down     Stop upstream Sui Localnet, preserving state (up resumes the same chain)
+  reset    Start over on a fresh chain: remove chain state, logs, publish output
+           and generated env files; keep the deployer key and generated ports
+  purge    Remove the whole .devstack tree and apps/web/.env.local; nothing survives
 
 Environment:
   SUI_DEVSTACK_HOME             Path to sui-devstack checkout
   SUI_DEVSTACK_SCRIPT           Override path to localnet/sui-localnet.sh
+  SUI_DEVSTACK_COMPOSE_PROJECT  Compose project name (default: pairmarket-devstack,
+                                shared by every worktree unless overridden)
   PAIRMARKET_DEVSTACK_DIR       Override state dir (default: .devstack)
+  PAIRMARKET_WEB_ENV_FILE       Override web env path (default: apps/web/.env.local)
   SUI_DEVSTACK_RPC_PORT         Override local RPC port (otherwise generated)
   SUI_DEVSTACK_FAUCET_PORT      Override local faucet port (otherwise generated)
   SUI_DEVSTACK_GRAPHQL_PORT     Override local GraphQL port (otherwise generated)
@@ -317,7 +322,7 @@ preflight_devstack_ports() {
     err "  RPC:     $SUI_DEVSTACK_RPC_PORT"
     err "  Faucet:  $SUI_DEVSTACK_FAUCET_PORT"
     err "  GraphQL: $SUI_DEVSTACK_GRAPHQL_PORT"
-    err "Set SUI_DEVSTACK_{RPC,FAUCET,GRAPHQL}_PORT or run devstack:reset to choose fresh ports."
+    err "Set SUI_DEVSTACK_{RPC,FAUCET,GRAPHQL}_PORT to free ports, or delete $PORT_ENV_FILE so the next 'up' generates a fresh set."
     exit 1
   fi
 }
@@ -327,10 +332,20 @@ with_sui_devstack_env() {
   export SUI_DEVSTACK_STATE_DIR="${SUI_DEVSTACK_STATE_DIR:-$STATE_DIR/sui-localnet/state}"
   export SUI_DEVSTACK_LOGS_DIR="${SUI_DEVSTACK_LOGS_DIR:-$STATE_DIR/sui-localnet/logs}"
 
-  ensure_devstack_ports
-  if [[ "${1:-}" == "up" ]]; then
-    preflight_devstack_ports
-  fi
+  case "${1:-}" in
+    purge)
+      # Nothing survives a purge, so do not allocate or persist ports:
+      # persist_ports would recreate the state dir we are about to remove,
+      # and compose does not need the port values to tear a project down.
+      ;;
+    up)
+      ensure_devstack_ports
+      preflight_devstack_ports
+      ;;
+    *)
+      ensure_devstack_ports
+      ;;
+  esac
 
   "$(sui_devstack_script)" "$@"
 }
@@ -581,9 +596,38 @@ show_pairmarket_status() {
   fi
 }
 
+# reset: drop everything bound to the chain upstream just destroyed. The
+# package/config/admin-cap IDs, Published.localnet.toml and the publish
+# output name objects on that chain and would dangle; the env files embed
+# them. Keep the deployer key (sui-client/) and the generated ports: neither
+# references a chain object, `up` re-funds the same address from the fresh
+# faucet, and stable ports keep other shells' env valid across a reset.
 reset_pairmarket_state() {
-  log "Removing pairmarket state from $STATE_DIR"
-  rm -rf "$CLIENT_DIR" "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$PUBLISH_WORKDIR" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE" "$PORT_ENV_FILE"
+  log "Removing pairmarket chain-bound state from $STATE_DIR (keeping sui-client/ and ports.env)"
+  rm -rf "$PUBLISH_WORKDIR"
+  rm -f "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE"
+}
+
+# purge: nothing survives. The whole state root goes to upstream purge as an
+# extra directory so it is removed by the same root-owned-safe helper that
+# handles the chain state living inside it: a plain rm would stop at any
+# file the Sui container left owned by uid 0, and would miss state left
+# under an older layout. The web env file lives outside the state root.
+purge_pairmarket_state() {
+  local script
+  script="$(sui_devstack_script)"
+  # The upstream wrapper only grew `purge` recently; probe its usage text so
+  # an older checkout fails with a pointer instead of a bare usage dump.
+  if ! "$script" --help 2>/dev/null | grep -qE '^[[:space:]]+purge[[:space:]]'; then
+    err "The sui-devstack wrapper at $script has no 'purge' command."
+    err "Update that checkout (sui-devstack master with PR #4) or point SUI_DEVSTACK_HOME at one that has it."
+    exit 1
+  fi
+  local status=0
+  with_sui_devstack_env purge "$STATE_DIR" || status=$?
+  log "Removing $WEB_ENV_FILE"
+  rm -f "$WEB_ENV_FILE"
+  return "$status"
 }
 
 case "${1:-}" in
@@ -618,6 +662,9 @@ case "${1:-}" in
   reset)
     with_sui_devstack_env reset
     reset_pairmarket_state
+    ;;
+  purge)
+    purge_pairmarket_state
     ;;
   -h|--help|help)
     usage

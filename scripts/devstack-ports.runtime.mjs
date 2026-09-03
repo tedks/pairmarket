@@ -53,7 +53,16 @@ function runDevstack(env, command = "status") {
   return spawnSync("bash", [script, command], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    env: {
+      ...process.env,
+      // Keep reset/purge in these tests away from the checkout's real
+      // apps/web/.env.local.
+      PAIRMARKET_WEB_ENV_FILE: join(
+        env.PAIRMARKET_DEVSTACK_DIR,
+        "web.env.local",
+      ),
+      ...env,
+    },
   });
 }
 
@@ -129,7 +138,11 @@ try {
 
   const reset = runDevstack(generatedEnv, "reset");
   assert.equal(reset.status, 0, reset.stderr || reset.stdout);
-  assert.equal(existsSync(join(generatedDir, "ports.env")), false);
+  assert.ok(
+    existsSync(join(generatedDir, "ports.env")),
+    "reset keeps the generated ports",
+  );
+  assert.deepEqual(readPorts(generatedDir), firstPorts);
 
   const explicitDir = mkdtempSync(
     join(tmpdir(), "pairmarket-devstack-explicit-"),
