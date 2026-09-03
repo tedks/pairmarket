@@ -149,19 +149,25 @@ you are done; the devstack section of `AGENTS.md` says when.
 the `purge` command (master with sui-devstack PR #4). An older checkout fails
 with a pointer and removes nothing.
 
-Because `purge` deletes a whole tree, some of it possibly through upstream's
-root cleanup container, it refuses anything but the documented layout:
-`PAIRMARKET_DEVSTACK_DIR` must be a real directory (not a symlink) inside
-this checkout, and `PAIRMARKET_WEB_ENV_FILE` must point inside the checkout
-or the state directory. `reset` applies the same rule to the web env file.
-Anything else is refused before upstream is called; remove external state
-yourself.
+Because `reset` and `purge` delete things, and `purge` hands a whole tree
+to upstream (which may finish the job as root), every deletion target is
+pinned before any destructive upstream command runs: `PAIRMARKET_DEVSTACK_DIR`,
+`PAIRMARKET_WEB_ENV_FILE`, and any `SUI_DEVSTACK_STATE_DIR` /
+`SUI_DEVSTACK_LOGS_DIR` you exported are each resolved to an absolute
+canonical path (a relative value is taken against your current directory,
+and a path that does not exist yet is fine), their final component must not
+be a symlink, and the result must lie strictly inside this checkout (the web
+env file may also live inside the state directory). The canonical path is
+what gets deleted and what upstream receives, whichever directory you ran
+the command from. Anything else is refused with nothing removed; clean up
+external state yourself.
 
-Every worktree shares the compose project name `pairmarket-devstack` by
-default, so `down`, `reset`, and `purge` in one worktree stop the containers
-of a devstack started from another (their `.devstack/` trees stay separate).
-Set `SUI_DEVSTACK_COMPOSE_PROJECT` per worktree if two must run at once; the
-generated ports already differ.
+The compose project name defaults to `pairmarket-devstack` in the `master`
+worktree and `pairmarket-devstack-<worktree>` elsewhere (the worktree
+directory name with the `pairmarket-` prefix dropped), so two worktrees'
+stacks and their `pgdata` volumes do not share a project and one worktree's
+`down`/`reset`/`purge` cannot tear down another's. `SUI_DEVSTACK_COMPOSE_PROJECT`
+overrides it; `devstack:status` prints the name in use.
 
 Override ports with the upstream variables:
 

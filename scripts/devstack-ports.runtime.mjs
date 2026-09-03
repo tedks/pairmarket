@@ -7,13 +7,15 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import net from "node:net";
 
 const root = resolve(import.meta.dirname, "..");
 const script = join(root, "scripts/devstack.sh");
+
+// reset refuses a state root outside the checkout, so scenario directories
+// live under the repo as .devstack-test-* (ignored by git).
 
 function makeFakeUpstream(dir) {
   const fake = join(dir, "fake-sui-localnet.sh");
@@ -115,9 +117,7 @@ async function close(server) {
 const tempDirs = [];
 
 try {
-  const generatedDir = mkdtempSync(
-    join(tmpdir(), "pairmarket-devstack-ports-"),
-  );
+  const generatedDir = mkdtempSync(join(root, ".devstack-test-ports-ports-"));
   tempDirs.push(generatedDir);
   const generated = makeFakeUpstream(generatedDir);
   const generatedEnv = {
@@ -144,9 +144,7 @@ try {
   );
   assert.deepEqual(readPorts(generatedDir), firstPorts);
 
-  const explicitDir = mkdtempSync(
-    join(tmpdir(), "pairmarket-devstack-explicit-"),
-  );
+  const explicitDir = mkdtempSync(join(root, ".devstack-test-ports-explicit-"));
   tempDirs.push(explicitDir);
   const explicit = makeFakeUpstream(explicitDir);
   const explicitResult = runDevstack({
@@ -168,9 +166,7 @@ try {
   });
   assertCaptured(explicit.capture, readPorts(explicitDir));
 
-  const partialDir = mkdtempSync(
-    join(tmpdir(), "pairmarket-devstack-partial-"),
-  );
+  const partialDir = mkdtempSync(join(root, ".devstack-test-ports-partial-"));
   tempDirs.push(partialDir);
   const partial = makeFakeUpstream(partialDir);
   const partialResult = runDevstack({
@@ -194,7 +190,7 @@ try {
   assertCaptured(partial.capture, partialPorts);
 
   const collisionDir = mkdtempSync(
-    join(tmpdir(), "pairmarket-devstack-collision-"),
+    join(root, ".devstack-test-ports-collision-"),
   );
   tempDirs.push(collisionDir);
   const collision = makeFakeUpstream(collisionDir);

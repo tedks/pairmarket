@@ -41,13 +41,14 @@ Commands:
   reset    Start over on a fresh chain: remove chain state, logs, publish output
            and generated env files; keep the deployer key and generated ports
   purge    Remove the whole .devstack tree and apps/web/.env.local; nothing survives
-           (refuses a state dir that is a symlink or outside this checkout)
+           (every deletion target must resolve inside this checkout, no symlinks)
 
 Environment:
   SUI_DEVSTACK_HOME             Path to sui-devstack checkout
   SUI_DEVSTACK_SCRIPT           Override path to localnet/sui-localnet.sh
-  SUI_DEVSTACK_COMPOSE_PROJECT  Compose project name (default: pairmarket-devstack,
-                                shared by every worktree unless overridden)
+  SUI_DEVSTACK_COMPOSE_PROJECT  Compose project name (default: pairmarket-devstack in
+                                the master worktree, pairmarket-devstack-<worktree>
+                                elsewhere)
   PAIRMARKET_DEVSTACK_DIR       Override state dir (default: .devstack)
   PAIRMARKET_WEB_ENV_FILE       Override web env path (default: apps/web/.env.local)
   SUI_DEVSTACK_RPC_PORT         Override local RPC port (otherwise generated)
@@ -329,7 +330,7 @@ preflight_devstack_ports() {
 }
 
 with_sui_devstack_env() {
-  export SUI_DEVSTACK_COMPOSE_PROJECT="${SUI_DEVSTACK_COMPOSE_PROJECT:-pairmarket-devstack}"
+  export SUI_DEVSTACK_COMPOSE_PROJECT="${SUI_DEVSTACK_COMPOSE_PROJECT:-$(default_compose_project)}"
   export SUI_DEVSTACK_STATE_DIR="${SUI_DEVSTACK_STATE_DIR:-$STATE_DIR/sui-localnet/state}"
   export SUI_DEVSTACK_LOGS_DIR="${SUI_DEVSTACK_LOGS_DIR:-$STATE_DIR/sui-localnet/logs}"
 
@@ -609,34 +610,97 @@ reset_pairmarket_state() {
   rm -f "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE"
 }
 
-# Canonical form of a path (parent symlinks resolved, `..` collapsed).
-# Fails when readlink -f is unavailable or the path cannot be resolved;
-# callers treat that as a refusal, never as "use the raw path".
-canonical_path() {
+# --- deletion targets ----------------------------------------------------
+#
+# reset and purge delete things, and purge hands a whole tree to upstream,
+# which may finish the job as root. Every prospective target therefore goes
+# through bounded_target before any teardown:
+#
+# - it is resolved lexically first (GNU realpath -sm: absolute, `.` and
+#   trailing slashes dropped, symlinks NOT followed) so that the symlink
+#   check looks at the final component itself and cannot be dodged with
+#   `link/` or `link/.`;
+# - the final component must not be a symlink;
+# - then it is canonicalized with missing components allowed (GNU
+#   readlink -m), so a path that does not exist yet is still pinned to a
+#   real location, and the result must lie strictly inside this checkout
+#   (or inside the state root, for the web env file);
+# - the canonical path is what gets used and passed upstream, so what was
+#   validated is what is deleted, whichever directory this was invoked from.
+#
+# Missing GNU realpath/readlink is a refusal, never a fallback to the raw
+# string. This defends against accidents (a mistyped or inherited variable,
+# an off-by-one `..`), which is the threat here; the caller already has the
+# user's privileges.
+
+canonical_path_m() {
   local p
-  p="$(readlink -f -- "$1" 2>/dev/null)" || return 1
+  p="$(readlink -m -- "$1" 2>/dev/null)" || return 1
   [[ -n "$p" ]] || return 1
   printf '%s\n' "$p"
 }
 
-# True when canonical path $1 is $2 or lies under it.
-path_within() {
-  [[ "$1" == "$2" || "$1" == "$2"/* ]]
+lexical_path() {
+  local p
+  p="$(realpath -sm -- "$1" 2>/dev/null)" || return 1
+  [[ -n "$p" ]] || return 1
+  printf '%s\n' "$p"
 }
 
-# reset and purge delete the web env file, so PAIRMARKET_WEB_ENV_FILE must
-# not be able to point at anything outside the checkout or the state root:
-# an inherited or mistyped value must fail here, before anything is torn
-# down. A parent directory that does not exist is fine (nothing to delete).
-require_web_env_file_in_bounds() {
-  local parent root state
-  parent="$(canonical_path "$(dirname -- "$WEB_ENV_FILE")")" || return 0
-  root="$(canonical_path "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
-  state="$(canonical_path "$STATE_DIR")" || state=""
-  if path_within "$parent" "$root"; then return 0; fi
-  if [[ -n "$state" ]] && path_within "$parent" "$state"; then return 0; fi
-  err "Refusing to touch $WEB_ENV_FILE: PAIRMARKET_WEB_ENV_FILE must point inside the checkout ($PROJECT_ROOT) or the state dir ($STATE_DIR)."
+# bounded_target WHAT RAW [ALSO]: print the canonical form of RAW, or exit 1
+# with a message naming WHAT. ALSO is an extra canonical directory the
+# target may live under besides the checkout.
+bounded_target() {
+  local what="$1" raw="$2" also="${3:-}" root lexical canon
+  root="$(canonical_path_m "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
+  if ! lexical="$(lexical_path "$raw")"; then
+    err "Refusing to touch $what ($raw): cannot resolve it (GNU realpath required)."
+    exit 1
+  fi
+  if [[ -L "$lexical" ]]; then
+    err "Refusing to touch $what ($raw): it is a symlink. Remove the link and its target yourself."
+    exit 1
+  fi
+  if ! canon="$(canonical_path_m "$lexical")"; then
+    err "Refusing to touch $what ($raw): cannot canonicalize it (GNU readlink required)."
+    exit 1
+  fi
+  if [[ "$canon" == "$root"/* ]]; then
+    printf '%s\n' "$canon"
+    return 0
+  fi
+  if [[ -n "$also" && "$canon" == "$also"/* ]]; then
+    printf '%s\n' "$canon"
+    return 0
+  fi
+  err "Refusing to touch $what ($raw): it resolves to $canon, outside this checkout ($root)."
   exit 1
+}
+
+# Pin every path reset/purge will delete or hand upstream: the state root,
+# the web env file, and any SUI_DEVSTACK_STATE_DIR / SUI_DEVSTACK_LOGS_DIR
+# the caller exported (upstream deletes those too). Rewrites the globals to
+# their canonical forms.
+bound_teardown_targets() {
+  STATE_DIR="$(bounded_target PAIRMARKET_DEVSTACK_DIR "$STATE_DIR")" || exit 1
+  WEB_ENV_FILE="$(bounded_target PAIRMARKET_WEB_ENV_FILE "$WEB_ENV_FILE" "$STATE_DIR")" || exit 1
+  if [[ -n "${SUI_DEVSTACK_STATE_DIR:-}" ]]; then
+    SUI_DEVSTACK_STATE_DIR="$(bounded_target SUI_DEVSTACK_STATE_DIR "$SUI_DEVSTACK_STATE_DIR")" || exit 1
+    export SUI_DEVSTACK_STATE_DIR
+  fi
+  if [[ -n "${SUI_DEVSTACK_LOGS_DIR:-}" ]]; then
+    SUI_DEVSTACK_LOGS_DIR="$(bounded_target SUI_DEVSTACK_LOGS_DIR "$SUI_DEVSTACK_LOGS_DIR")" || exit 1
+    export SUI_DEVSTACK_LOGS_DIR
+  fi
+  # Derived paths follow the (possibly rewritten) state root.
+  PUBLISH_WORKDIR="$STATE_DIR/publish-workdir"
+  PUBLISH_JSON="$STATE_DIR/publish-output.json"
+  PUBFILE="$STATE_DIR/Published.localnet.toml"
+  PACKAGE_ID_FILE="$STATE_DIR/package-id.txt"
+  CONFIG_ID_FILE="$STATE_DIR/config-id.txt"
+  ADMIN_CAP_ID_FILE="$STATE_DIR/admin-cap-id.txt"
+  LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
+  PORT_ENV_FILE="$STATE_DIR/ports.env"
 }
 
 # purge: nothing survives. The whole state root goes to upstream purge as an
@@ -646,8 +710,9 @@ require_web_env_file_in_bounds() {
 # under an older layout. The web env file lives outside the state root and
 # is removed here, only once upstream has succeeded.
 purge_pairmarket_state() {
-  local script help root state status=0
+  local script help status=0
   script="$(sui_devstack_script)"
+  bound_teardown_targets
   # The upstream wrapper only grew `purge` recently; probe its usage text so
   # an older checkout fails with a pointer instead of a bare usage dump.
   # Capture first, then inspect: `grep -q` on a pipe can SIGPIPE the producer
@@ -658,28 +723,10 @@ purge_pairmarket_state() {
     err "Update that checkout (sui-devstack master with PR #4) or point SUI_DEVSTACK_HOME at one that has it."
     exit 1
   fi
-  # The state root is about to be deleted, some of it possibly by a root
-  # container upstream. Only the documented layout is allowed: a real
-  # directory strictly inside this checkout. Upstream applies its own rules
-  # on top; this one exists so a mistyped or inherited PAIRMARKET_DEVSTACK_DIR
-  # cannot point the wrapper at anything else.
-  root="$(canonical_path "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
-  if [[ -L "$STATE_DIR" ]]; then
-    err "Refusing to purge $STATE_DIR: it is a symlink. Remove the link and its target yourself."
-    exit 1
-  fi
-  if [[ -e "$STATE_DIR" ]]; then
-    state="$(canonical_path "$STATE_DIR")" || { err "Refusing to purge $STATE_DIR: cannot canonicalize it."; exit 1; }
-    if [[ ! -d "$state" ]] || [[ "$state" != "$root"/* ]]; then
-      err "Refusing to purge $STATE_DIR: PAIRMARKET_DEVSTACK_DIR must be a directory inside this checkout ($root)."
-      err "Remove an external state directory yourself."
-      exit 1
-    fi
-  fi
-  require_web_env_file_in_bounds
-  # Run upstream from the checkout root so its own "under \$PWD" rule for
-  # the root cleanup container lines up with the layout checked above,
-  # whichever directory this was invoked from.
+  # Run upstream from the checkout root so its own "under \$PWD" rule lines
+  # up with the bounds checked above, whichever directory this was invoked
+  # from. STATE_DIR is canonical and absolute here, so the cd cannot change
+  # what it names.
   (cd "$PROJECT_ROOT" && with_sui_devstack_env purge "$STATE_DIR") || status=$?
   if (( status != 0 )); then
     err "Upstream purge exited $status; leaving $WEB_ENV_FILE in place. Deal with what it reported, then run purge again."
@@ -687,6 +734,24 @@ purge_pairmarket_state() {
   fi
   log "Removing $WEB_ENV_FILE"
   rm -f -- "$WEB_ENV_FILE" || { err "Could not remove $WEB_ENV_FILE"; return 1; }
+}
+
+# Default compose project: `pairmarket-devstack` for the master worktree,
+# `pairmarket-devstack-<worktree>` elsewhere, so two worktrees' stacks (and
+# their pgdata volumes) do not share a project and one worktree's
+# down/reset/purge cannot tear down another's. SUI_DEVSTACK_COMPOSE_PROJECT
+# overrides it.
+default_compose_project() {
+  local base
+  base="$(basename -- "$PROJECT_ROOT")"
+  case "$base" in
+    master|main) printf 'pairmarket-devstack\n' ;;
+    *)
+      base="${base#pairmarket-}"
+      base="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
+      printf 'pairmarket-devstack-%s\n' "${base:-worktree}"
+      ;;
+  esac
 }
 
 case "${1:-}" in
@@ -719,7 +784,7 @@ case "${1:-}" in
     with_sui_devstack_env down
     ;;
   reset)
-    require_web_env_file_in_bounds
+    bound_teardown_targets
     with_sui_devstack_env reset
     reset_pairmarket_state
     ;;
