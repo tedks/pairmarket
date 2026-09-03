@@ -101,11 +101,15 @@ VITE_PAIRMARKET_ENABLE_BURNER=0
 
 Three commands take the devstack down. They differ in what survives:
 
-| Command          | Sui containers | Chain state + logs | Published IDs, env files | Deployer key, ports | `.devstack/` itself |
-|------------------|----------------|--------------------|--------------------------|---------------------|---------------------|
-| `devstack:down`  | stopped        | kept               | kept                     | kept                | kept                |
-| `devstack:reset` | removed        | removed            | removed                  | kept                | kept                |
-| `devstack:purge` | removed        | removed            | removed                  | removed             | removed             |
+| Command          | Sui containers | Current chain state + logs | Published IDs, env files | Deployer key, ports | `.devstack/` itself (incl. stale layouts) |
+|------------------|----------------|----------------------------|--------------------------|---------------------|-------------------------------------------|
+| `devstack:down`  | stopped        | kept                       | kept                     | kept                | kept                                      |
+| `devstack:reset` | removed        | removed                    | removed                  | kept                | kept                                      |
+| `devstack:purge` | removed        | removed                    | removed                  | removed             | removed                                   |
+
+`reset` only knows the current layout (`.devstack/sui-localnet/{state,logs}`);
+anything left under an older layout survives it. `purge` removes the whole
+tree.
 
 `devstack:down` is for coming back to the same chain: `devstack:up` resumes
 it and the published package is still there. It frees nothing on disk.
@@ -144,6 +148,14 @@ you are done; the devstack section of `AGENTS.md` says when.
 `devstack:purge` needs a sui-devstack checkout whose `sui-localnet.sh` has
 the `purge` command (master with sui-devstack PR #4). An older checkout fails
 with a pointer and removes nothing.
+
+Because `purge` deletes a whole tree, some of it possibly through upstream's
+root cleanup container, it refuses anything but the documented layout:
+`PAIRMARKET_DEVSTACK_DIR` must be a real directory (not a symlink) inside
+this checkout, and `PAIRMARKET_WEB_ENV_FILE` must point inside the checkout
+or the state directory. `reset` applies the same rule to the web env file.
+Anything else is refused before upstream is called; remove external state
+yourself.
 
 Every worktree shares the compose project name `pairmarket-devstack` by
 default, so `down`, `reset`, and `purge` in one worktree stop the containers

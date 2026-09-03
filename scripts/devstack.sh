@@ -41,6 +41,7 @@ Commands:
   reset    Start over on a fresh chain: remove chain state, logs, publish output
            and generated env files; keep the deployer key and generated ports
   purge    Remove the whole .devstack tree and apps/web/.env.local; nothing survives
+           (refuses a state dir that is a symlink or outside this checkout)
 
 Environment:
   SUI_DEVSTACK_HOME             Path to sui-devstack checkout
@@ -608,26 +609,84 @@ reset_pairmarket_state() {
   rm -f "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE"
 }
 
+# Canonical form of a path (parent symlinks resolved, `..` collapsed).
+# Fails when readlink -f is unavailable or the path cannot be resolved;
+# callers treat that as a refusal, never as "use the raw path".
+canonical_path() {
+  local p
+  p="$(readlink -f -- "$1" 2>/dev/null)" || return 1
+  [[ -n "$p" ]] || return 1
+  printf '%s\n' "$p"
+}
+
+# True when canonical path $1 is $2 or lies under it.
+path_within() {
+  [[ "$1" == "$2" || "$1" == "$2"/* ]]
+}
+
+# reset and purge delete the web env file, so PAIRMARKET_WEB_ENV_FILE must
+# not be able to point at anything outside the checkout or the state root:
+# an inherited or mistyped value must fail here, before anything is torn
+# down. A parent directory that does not exist is fine (nothing to delete).
+require_web_env_file_in_bounds() {
+  local parent root state
+  parent="$(canonical_path "$(dirname -- "$WEB_ENV_FILE")")" || return 0
+  root="$(canonical_path "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
+  state="$(canonical_path "$STATE_DIR")" || state=""
+  if path_within "$parent" "$root"; then return 0; fi
+  if [[ -n "$state" ]] && path_within "$parent" "$state"; then return 0; fi
+  err "Refusing to touch $WEB_ENV_FILE: PAIRMARKET_WEB_ENV_FILE must point inside the checkout ($PROJECT_ROOT) or the state dir ($STATE_DIR)."
+  exit 1
+}
+
 # purge: nothing survives. The whole state root goes to upstream purge as an
 # extra directory so it is removed by the same root-owned-safe helper that
 # handles the chain state living inside it: a plain rm would stop at any
 # file the Sui container left owned by uid 0, and would miss state left
-# under an older layout. The web env file lives outside the state root.
+# under an older layout. The web env file lives outside the state root and
+# is removed here, only once upstream has succeeded.
 purge_pairmarket_state() {
-  local script
+  local script help root state status=0
   script="$(sui_devstack_script)"
   # The upstream wrapper only grew `purge` recently; probe its usage text so
   # an older checkout fails with a pointer instead of a bare usage dump.
-  if ! "$script" --help 2>/dev/null | grep -qE '^[[:space:]]+purge[[:space:]]'; then
+  # Capture first, then inspect: `grep -q` on a pipe can SIGPIPE the producer
+  # and, under pipefail, misreport a good upstream as old.
+  help="$("$script" --help 2>/dev/null)" || help=""
+  if ! grep -qE '^[[:space:]]+purge[[:space:]]' <<<"$help"; then
     err "The sui-devstack wrapper at $script has no 'purge' command."
     err "Update that checkout (sui-devstack master with PR #4) or point SUI_DEVSTACK_HOME at one that has it."
     exit 1
   fi
-  local status=0
-  with_sui_devstack_env purge "$STATE_DIR" || status=$?
+  # The state root is about to be deleted, some of it possibly by a root
+  # container upstream. Only the documented layout is allowed: a real
+  # directory strictly inside this checkout. Upstream applies its own rules
+  # on top; this one exists so a mistyped or inherited PAIRMARKET_DEVSTACK_DIR
+  # cannot point the wrapper at anything else.
+  root="$(canonical_path "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
+  if [[ -L "$STATE_DIR" ]]; then
+    err "Refusing to purge $STATE_DIR: it is a symlink. Remove the link and its target yourself."
+    exit 1
+  fi
+  if [[ -e "$STATE_DIR" ]]; then
+    state="$(canonical_path "$STATE_DIR")" || { err "Refusing to purge $STATE_DIR: cannot canonicalize it."; exit 1; }
+    if [[ ! -d "$state" ]] || [[ "$state" != "$root"/* ]]; then
+      err "Refusing to purge $STATE_DIR: PAIRMARKET_DEVSTACK_DIR must be a directory inside this checkout ($root)."
+      err "Remove an external state directory yourself."
+      exit 1
+    fi
+  fi
+  require_web_env_file_in_bounds
+  # Run upstream from the checkout root so its own "under \$PWD" rule for
+  # the root cleanup container lines up with the layout checked above,
+  # whichever directory this was invoked from.
+  (cd "$PROJECT_ROOT" && with_sui_devstack_env purge "$STATE_DIR") || status=$?
+  if (( status != 0 )); then
+    err "Upstream purge exited $status; leaving $WEB_ENV_FILE in place. Deal with what it reported, then run purge again."
+    return "$status"
+  fi
   log "Removing $WEB_ENV_FILE"
-  rm -f "$WEB_ENV_FILE"
-  return "$status"
+  rm -f -- "$WEB_ENV_FILE" || { err "Could not remove $WEB_ENV_FILE"; return 1; }
 }
 
 case "${1:-}" in
@@ -660,6 +719,7 @@ case "${1:-}" in
     with_sui_devstack_env down
     ;;
   reset)
+    require_web_env_file_in_bounds
     with_sui_devstack_env reset
     reset_pairmarket_state
     ;;
