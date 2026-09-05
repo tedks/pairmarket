@@ -774,10 +774,11 @@ bound_teardown_targets() {
   STATE_DIR="$(bounded_target PAIRMARKET_DEVSTACK_DIR dir "$STATE_DIR")" || exit 1
   require_devstack_shaped "$STATE_DIR"
   if [[ "$WEB_ENV_FILE" != *$'\n'* ]] && web_lexical="$(lexical_path "$WEB_ENV_FILE")" && [[ -L "$web_lexical" ]]; then
-    # A developer who symlinked .env.local somewhere deliberate keeps the
-    # target (and the link, unless the link sits inside a directory being
+    # A developer who symlinked .env.local somewhere deliberate keeps it:
+    # the link is not followed, so neither it nor its target is removed on
+    # its account (either may still go if it sits inside a directory being
     # removed); deploy still writes through it.
-    log "Note: $WEB_ENV_FILE is a symlink; not following it. Its target is left alone (and so is the link, unless it sits inside a directory being removed)."
+    log "Note: $WEB_ENV_FILE is a symlink; not following it. Neither the link nor its target is removed on its account (either may still go if it sits inside a directory being removed)."
     WEB_ENV_FILE=""
   else
     WEB_ENV_FILE="$(bounded_target PAIRMARKET_WEB_ENV_FILE file "$WEB_ENV_FILE")" || exit 1

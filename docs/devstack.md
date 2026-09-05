@@ -172,9 +172,10 @@ canonical path is what gets deleted and what upstream receives, whichever
 directory you ran the command from (`reset` and `purge` both run upstream
 from the checkout root). Anything else is refused with nothing removed;
 clean up external state yourself. One exception is gentle rather than a
-refusal: a symlinked `apps/web/.env.local` is not followed; its target is
-left alone (and so is the link, unless it sits inside a directory being
-removed), a note is printed, and teardown proceeds. `reset`, `purge`, `up`, `down`,
+refusal: a symlinked `apps/web/.env.local` is not followed, so neither the
+link nor its target is removed on its account (either may still go if it
+sits inside a directory being removed, such as the state root); a note is
+printed, and teardown proceeds. `reset`, `purge`, `up`, `down`,
 `status`, `deploy` and `env` take no arguments and exit 2 if given any, so
 `purge --help` cannot purge.
 
