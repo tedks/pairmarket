@@ -1,0 +1,24 @@
+id: 4e37c25256bbbf91f4b4827cee49292b34b90264
+title: 'tower0: point pairmarket at a sui-devstack checkout that has purge'
+desc: 'On tower0, pairmarket''s scripts/devstack.sh resolves the upstream sui-localnet.sh
+  from the sui-devstack agent/sui-173-localnet worktree first (earlier in its search
+  path than master). sui-devstack PR #4 (purge verb, merged 2026-09-05 as e03a256)
+  landed on master only, so ''pnpm devstack:purge'' there fails with ''has no purge
+  command'' and removes nothing until that worktree is rebased onto sui-devstack master
+  or SUI_DEVSTACK_HOME is pointed at master. Do this only after the /var/lib/docker
+  move on tower0 has finished. Also on tower0: an orphaned ''pairmarket-devstack-pgdata''
+  volume (hyphen, older layout) that no compose project claims; one-off ''docker volume
+  rm''.'
+type: task
+component: devstack
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-09-05T22:34:20-00:00
+references: []
+log_events:
+- time: 2026-09-05T22:34:20-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
