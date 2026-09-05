@@ -12,8 +12,8 @@ type: feature
 component: devstack
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-09-03T22:18:52-00:00
 references: []
 log_events:
@@ -21,3 +21,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-09-05T22:38:34-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Implemented in PR #22 (merged 2026-09-05 as 63883f4): the compose project
+    defaults to pairmarket-devstack in master/main and pairmarket-devstack-<name>-<hash6>
+    elsewhere, is recorded in .devstack/compose-project by up (only after upstream
+    has started the stack), read back by every other verb, and overridden by SUI_DEVSTACK_COMPOSE_PROJECT
+    (validated against compose''s charset).'
