@@ -9,7 +9,7 @@ CLIENT_DIR="$STATE_DIR/sui-client"
 CLIENT_CONFIG="$CLIENT_DIR/client.yaml"
 ADDRESS_JSON="$CLIENT_DIR/deployer-address.json"
 LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
-WEB_ENV_FILE="$PROJECT_ROOT/apps/web/.env.local"
+WEB_ENV_FILE="${PAIRMARKET_WEB_ENV_FILE:-$PROJECT_ROOT/apps/web/.env.local}"
 PORT_ENV_FILE="$STATE_DIR/ports.env"
 PUBLISH_JSON="$STATE_DIR/publish-output.json"
 PUBFILE="$STATE_DIR/Published.localnet.toml"
@@ -37,13 +37,26 @@ Commands:
   status   Show upstream localnet and pairmarket deploy status
   logs     Tail upstream Sui Localnet logs
   env      Print the generated pairmarket environment file
-  down     Stop upstream Sui Localnet, preserving state
-  reset    Stop upstream Sui Localnet and remove pairmarket local state
+  down     Stop upstream Sui Localnet, preserving state (up resumes the same chain)
+  reset    Start over on a fresh chain: remove chain state, logs, publish output
+           and generated env files; keep the deployer key and generated ports
+  purge    Remove the configured state root (default .devstack/) and
+           apps/web/.env.local; nothing in them survives. Every deletion target
+           must resolve inside this checkout, under a directory named .devstack*,
+           and must not be a symlink. No arguments: `purge --help` is refused.
 
 Environment:
   SUI_DEVSTACK_HOME             Path to sui-devstack checkout
   SUI_DEVSTACK_SCRIPT           Override path to localnet/sui-localnet.sh
-  PAIRMARKET_DEVSTACK_DIR       Override state dir (default: .devstack)
+  SUI_DEVSTACK_COMPOSE_PROJECT  Compose project name (default: pairmarket-devstack in
+                                the master worktree, pairmarket-devstack-<name>-<hash>
+                                elsewhere; `up` records it in .devstack/compose-project)
+  PAIRMARKET_DEVSTACK_DIR       Override state dir (default: .devstack; reset/purge
+                                require it inside this checkout, under a directory
+                                named .devstack*, not a symlink)
+  PAIRMARKET_WEB_ENV_FILE       Override web env path (default: apps/web/.env.local;
+                                inside this checkout, never a file reset keeps; a
+                                symlink is left alone with a note)
   SUI_DEVSTACK_RPC_PORT         Override local RPC port (otherwise generated)
   SUI_DEVSTACK_FAUCET_PORT      Override local faucet port (otherwise generated)
   SUI_DEVSTACK_GRAPHQL_PORT     Override local GraphQL port (otherwise generated)
@@ -301,7 +314,12 @@ ensure_devstack_ports() {
   export SUI_DEVSTACK_RPC_PORT
   export SUI_DEVSTACK_FAUCET_PORT
   export SUI_DEVSTACK_GRAPHQL_PORT
-  persist_ports
+  # Only `up` creates the state dir; after a purge, `status`/`down` must not
+  # bring .devstack/ports.env back. When the dir already exists, persisting
+  # keeps env-overridden ports consistent for the next verb, as before.
+  if [[ "${1:-}" == up || -d "$STATE_DIR" ]]; then
+    persist_ports
+  fi
 }
 
 sui_stack_running() {
@@ -317,22 +335,47 @@ preflight_devstack_ports() {
     err "  RPC:     $SUI_DEVSTACK_RPC_PORT"
     err "  Faucet:  $SUI_DEVSTACK_FAUCET_PORT"
     err "  GraphQL: $SUI_DEVSTACK_GRAPHQL_PORT"
-    err "Set SUI_DEVSTACK_{RPC,FAUCET,GRAPHQL}_PORT or run devstack:reset to choose fresh ports."
+    err "Set SUI_DEVSTACK_{RPC,FAUCET,GRAPHQL}_PORT to free ports, or delete $PORT_ENV_FILE so the next 'up' generates a fresh set."
     exit 1
   fi
 }
 
 with_sui_devstack_env() {
-  export SUI_DEVSTACK_COMPOSE_PROJECT="${SUI_DEVSTACK_COMPOSE_PROJECT:-pairmarket-devstack}"
+  SUI_DEVSTACK_COMPOSE_PROJECT="$(resolve_compose_project)"
+  export SUI_DEVSTACK_COMPOSE_PROJECT
   export SUI_DEVSTACK_STATE_DIR="${SUI_DEVSTACK_STATE_DIR:-$STATE_DIR/sui-localnet/state}"
   export SUI_DEVSTACK_LOGS_DIR="${SUI_DEVSTACK_LOGS_DIR:-$STATE_DIR/sui-localnet/logs}"
 
-  ensure_devstack_ports
-  if [[ "${1:-}" == "up" ]]; then
-    preflight_devstack_ports
-  fi
+  case "${1:-}" in
+    purge)
+      # Nothing survives a purge, so do not allocate or persist ports:
+      # persist_ports would recreate the state dir we are about to remove,
+      # and compose does not need the port values to tear a project down.
+      ;;
+    up)
+      ensure_devstack_ports up
+      preflight_devstack_ports
+      ;;
+    *)
+      ensure_devstack_ports "${1:-}"
+      ;;
+  esac
 
-  "$(sui_devstack_script)" "$@"
+  # Upstream's status is this function's status, explicitly: callers run it
+  # inside `( ... ) || status=$?`, where `set -e` is suspended, so nothing
+  # after the upstream call may be allowed to mask a failure.
+  local status=0
+  "$(sui_devstack_script)" "$@" || status=$?
+
+  # Record the project only once upstream has actually started it, so a
+  # failed preflight or a failed upstream `up` (docker down, image missing,
+  # RPC never ready) cannot re-point the record away from a stack that is
+  # still running under the previous name. A half-started stack under an
+  # override is still reachable with that override set.
+  if (( status == 0 )) && [[ "${1:-}" == up ]]; then
+    persist_compose_project "$SUI_DEVSTACK_COMPOSE_PROJECT"
+  fi
+  return "$status"
 }
 
 load_sui_env() {
@@ -451,6 +494,10 @@ ensure_client() {
   client switch --env local --address "$(deployer_address)" >/dev/null
 }
 
+# Funding must run before any publish after a `reset`: sui-client/ survives
+# the re-genesis and client.yaml still carries the old chain_id for the
+# `local` env; `sui client faucet` refreshes it from the RPC (verified by
+# publishing against two force-regenesis chains with one keystore).
 fund_deployer() {
   local address
   address="$(deployer_address)"
@@ -581,23 +628,332 @@ show_pairmarket_status() {
   fi
 }
 
+# reset: drop everything bound to the chain upstream just destroyed. The
+# package/config/admin-cap IDs, Published.localnet.toml and the publish
+# output name objects on that chain and would dangle; the env files embed
+# them. Keep the deployer key (sui-client/) and the generated ports: neither
+# references a chain object, `up` re-funds the same address from the fresh
+# faucet, and stable ports keep other shells' env valid across a reset.
 reset_pairmarket_state() {
-  log "Removing pairmarket state from $STATE_DIR"
-  rm -rf "$CLIENT_DIR" "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$PUBLISH_WORKDIR" "$LOCAL_ENV_FILE" "$WEB_ENV_FILE" "$PORT_ENV_FILE"
+  log "Removing pairmarket chain-bound state from $STATE_DIR (keeping sui-client/ and ports.env)"
+  rm -r -f -- "$PUBLISH_WORKDIR"
+  rm -f -- "$PUBLISH_JSON" "$PUBFILE" "$PACKAGE_ID_FILE" "$CONFIG_ID_FILE" "$ADMIN_CAP_ID_FILE" "$LOCAL_ENV_FILE"
+  if [[ -n "$WEB_ENV_FILE" ]]; then
+    rm -f -- "$WEB_ENV_FILE"
+  fi
+}
+
+# --- deletion targets ----------------------------------------------------
+#
+# reset and purge delete things, and purge hands a whole tree to upstream,
+# which may finish the job as root. Every prospective target therefore goes
+# through bounded_target before any teardown:
+#
+# - it is resolved lexically first (GNU realpath -sm: absolute, `.` and
+#   trailing slashes dropped, symlinks NOT followed) so that the symlink
+#   check looks at the final component itself and cannot be dodged with
+#   `link/` or `link/.`;
+# - the final component must not be a symlink;
+# - then it is canonicalized with missing components allowed (GNU
+#   readlink -m), so a path that does not exist yet is still pinned to a
+#   real location, and the result must lie strictly inside this checkout
+#   (or inside the state root, for the web env file);
+# - the canonical path is what gets used and passed upstream, so what was
+#   validated is what is deleted, whichever directory this was invoked from;
+# - a value containing a newline is refused before any of that: command
+#   substitution strips trailing newlines, so `.../docs<newline>` would
+#   otherwise silently become `.../docs`;
+# - location is not enough, the target must also have the shape of a
+#   devstack artifact: the state root is, or lies under, a directory named
+#   `.devstack*`; an exported SUI_DEVSTACK_STATE_DIR / LOGS_DIR lies
+#   strictly under the state root and outside `sui-client/`; the web env
+#   file is never one of the files reset keeps (the keystore directory,
+#   ports.env, compose-project). Otherwise `PAIRMARKET_DEVSTACK_DIR=apps`
+#   would purge apps/, and `SUI_DEVSTACK_STATE_DIR=$STATE_DIR` would let
+#   reset delete the key it promises to keep.
+#
+# Missing GNU realpath/readlink is a refusal, never a fallback to the raw
+# string. This defends against accidents (a mistyped or inherited variable,
+# an off-by-one `..`), which is the threat here; the caller already has the
+# user's privileges.
+
+# Both capture behind a sentinel so a trailing newline in the result (a
+# symlinked component named that way) is seen and refused rather than
+# stripped by the command substitution.
+canonical_path_m() {
+  local p
+  p="$(readlink -m -- "$1" 2>/dev/null && printf x)" || return 1
+  p="${p%x}"; p="${p%$'\n'}"
+  [[ -n "$p" && "$p" != *$'\n'* ]] || return 1
+  printf '%s\n' "$p"
+}
+
+lexical_path() {
+  local p
+  p="$(realpath -sm -- "$1" 2>/dev/null && printf x)" || return 1
+  p="${p%x}"; p="${p%$'\n'}"
+  [[ -n "$p" && "$p" != *$'\n'* ]] || return 1
+  printf '%s\n' "$p"
+}
+
+# bounded_target WHAT KIND RAW: print the canonical form of RAW, or exit 1
+# with a message naming WHAT. KIND is `dir` or `file`: if the target exists
+# it must be of that kind (a regular file handed to upstream `purge` as a
+# "directory" would still be deleted).
+bounded_target() {
+  local what="$1" kind="$2" raw="$3" root lexical canon
+  if [[ "$raw" == *$'\n'* ]]; then
+    err "Refusing to touch $what: the value contains a newline."
+    exit 1
+  fi
+  root="$(canonical_path_m "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
+  if ! lexical="$(lexical_path "$raw")"; then
+    err "Refusing to touch $what ($raw): cannot resolve it (GNU realpath required)."
+    exit 1
+  fi
+  if [[ -L "$lexical" ]]; then
+    err "Refusing to touch $what ($raw): it is a symlink. Remove the link and its target yourself."
+    exit 1
+  fi
+  if ! canon="$(canonical_path_m "$lexical")"; then
+    err "Refusing to touch $what ($raw): cannot canonicalize it (GNU readlink required)."
+    exit 1
+  fi
+  if [[ -e "$canon" ]]; then
+    case "$kind" in
+      dir)  [[ -d "$canon" ]] || { err "Refusing to touch $what ($raw): exists but is not a directory."; exit 1; } ;;
+      file) [[ -f "$canon" ]] || { err "Refusing to touch $what ($raw): exists but is not a regular file."; exit 1; } ;;
+    esac
+  fi
+  if [[ "$canon" == "$root"/* ]]; then
+    printf '%s\n' "$canon"
+    return 0
+  fi
+  if [[ "$canon" == "$root" ]]; then
+    err "Refusing to touch $what ($raw): it is the checkout itself ($root)."
+  else
+    err "Refusing to touch $what ($raw): it resolves to $canon, outside this checkout ($root)."
+  fi
+  exit 1
+}
+
+# Pin every path reset/purge will delete or hand upstream: the state root,
+# the web env file, and any SUI_DEVSTACK_STATE_DIR / SUI_DEVSTACK_LOGS_DIR
+# the caller exported (upstream deletes those too). Rewrites the globals to
+# their canonical forms and recomputes everything derived from them.
+# The canonical state root must be, or lie under, a directory named
+# `.devstack*` (the default `.devstack`, the tests' `.devstack-test-*`).
+require_devstack_shaped() {
+  local canon="$1" root rel seg segs=()
+  root="$(canonical_path_m "$PROJECT_ROOT")" || { err "Cannot canonicalize $PROJECT_ROOT"; exit 1; }
+  rel="${canon#"$root"/}"
+  IFS=/ read -r -a segs <<< "$rel"
+  for seg in "${segs[@]}"; do
+    [[ "$seg" == .devstack* ]] && return 0
+  done
+  err "Refusing to touch PAIRMARKET_DEVSTACK_DIR ($canon): reset/purge only act on a state root that is, or lies under, a directory named .devstack* (relative to the checkout: $rel)."
+  exit 1
+}
+
+# An exported upstream directory must lie strictly under the state root and
+# outside sui-client/, or reset would delete what it promises to keep.
+require_under_state_root() {
+  local what="$1" canon="$2"
+  if [[ "$canon" != "$STATE_DIR"/* ]]; then
+    err "Refusing to touch $what ($canon): it must lie strictly inside the state root ($STATE_DIR)."
+    exit 1
+  fi
+  if [[ "$canon" == "$STATE_DIR/sui-client" || "$canon" == "$STATE_DIR/sui-client"/* ]]; then
+    err "Refusing to touch $what ($canon): it is the deployer key directory, which reset keeps."
+    exit 1
+  fi
+}
+
+bound_teardown_targets() {
+  local web_lexical
+  STATE_DIR="$(bounded_target PAIRMARKET_DEVSTACK_DIR dir "$STATE_DIR")" || exit 1
+  require_devstack_shaped "$STATE_DIR"
+  if [[ "$WEB_ENV_FILE" != *$'\n'* ]] && web_lexical="$(lexical_path "$WEB_ENV_FILE")" && [[ -L "$web_lexical" ]]; then
+    # A developer who symlinked .env.local somewhere deliberate keeps it:
+    # the link is not followed, so neither it nor its target is removed on
+    # its account (either may still go if it sits inside a directory being
+    # removed); deploy still writes through it.
+    log "Note: $WEB_ENV_FILE is a symlink; not following it. Neither the link nor its target is removed on its account (either may still go if it sits inside a directory being removed)."
+    WEB_ENV_FILE=""
+  else
+    WEB_ENV_FILE="$(bounded_target PAIRMARKET_WEB_ENV_FILE file "$WEB_ENV_FILE")" || exit 1
+    case "$WEB_ENV_FILE" in
+      "$STATE_DIR/sui-client"|"$STATE_DIR/sui-client"/*|"$STATE_DIR/ports.env"|"$STATE_DIR/compose-project")
+        err "Refusing to touch PAIRMARKET_WEB_ENV_FILE ($WEB_ENV_FILE): it names something reset keeps (deployer key, ports, compose project)."
+        exit 1
+        ;;
+    esac
+  fi
+  if [[ -n "${SUI_DEVSTACK_STATE_DIR:-}" ]]; then
+    SUI_DEVSTACK_STATE_DIR="$(bounded_target SUI_DEVSTACK_STATE_DIR dir "$SUI_DEVSTACK_STATE_DIR")" || exit 1
+    require_under_state_root SUI_DEVSTACK_STATE_DIR "$SUI_DEVSTACK_STATE_DIR"
+    export SUI_DEVSTACK_STATE_DIR
+  fi
+  if [[ -n "${SUI_DEVSTACK_LOGS_DIR:-}" ]]; then
+    SUI_DEVSTACK_LOGS_DIR="$(bounded_target SUI_DEVSTACK_LOGS_DIR dir "$SUI_DEVSTACK_LOGS_DIR")" || exit 1
+    require_under_state_root SUI_DEVSTACK_LOGS_DIR "$SUI_DEVSTACK_LOGS_DIR"
+    export SUI_DEVSTACK_LOGS_DIR
+  fi
+  CLIENT_DIR="$STATE_DIR/sui-client"
+  CLIENT_CONFIG="$CLIENT_DIR/client.yaml"
+  ADDRESS_JSON="$CLIENT_DIR/deployer-address.json"
+  LOCAL_ENV_FILE="$STATE_DIR/pairmarket-local.env"
+  PORT_ENV_FILE="$STATE_DIR/ports.env"
+  PUBLISH_JSON="$STATE_DIR/publish-output.json"
+  PUBFILE="$STATE_DIR/Published.localnet.toml"
+  PACKAGE_ID_FILE="$STATE_DIR/package-id.txt"
+  CONFIG_ID_FILE="$STATE_DIR/config-id.txt"
+  ADMIN_CAP_ID_FILE="$STATE_DIR/admin-cap-id.txt"
+  PUBLISH_WORKDIR="$STATE_DIR/publish-workdir"
+  COMPOSE_PROJECT_FILE="$STATE_DIR/compose-project"
+}
+
+# purge: nothing survives. The whole state root goes to upstream purge as an
+# extra directory so it is removed by the same root-owned-safe helper that
+# handles the chain state living inside it: a plain rm would stop at any
+# file the Sui container left owned by uid 0, and would miss state left
+# under an older layout. The web env file lives outside the state root and
+# is removed here, only once upstream has succeeded.
+purge_pairmarket_state() {
+  local script help status=0
+  script="$(sui_devstack_script)"
+  bound_teardown_targets
+  # The upstream wrapper only grew `purge` recently; probe its usage text so
+  # an older checkout fails with a pointer instead of a bare usage dump.
+  # Capture first, then inspect: `grep -q` on a pipe can SIGPIPE the producer
+  # and, under pipefail, misreport a good upstream as old.
+  help="$("$script" --help 2>/dev/null)" || help=""
+  if ! grep -qE '^[[:space:]]+purge[[:space:]]' <<<"$help"; then
+    err "The sui-devstack wrapper at $script has no 'purge' command."
+    err "Update that checkout (sui-devstack master with PR #4) or point SUI_DEVSTACK_HOME at one that has it."
+    exit 1
+  fi
+  # Run upstream from the checkout root so its own "under \$PWD" rule lines
+  # up with the bounds checked above, whichever directory this was invoked
+  # from. STATE_DIR is canonical and absolute here, so the cd cannot change
+  # what it names.
+  (cd "$PROJECT_ROOT" && with_sui_devstack_env purge "$STATE_DIR") || status=$?
+  if (( status != 0 )); then
+    if [[ -n "$WEB_ENV_FILE" ]]; then
+      err "Upstream purge exited $status; leaving $WEB_ENV_FILE in place. Deal with what it reported, then run purge again."
+    else
+      err "Upstream purge exited $status. Deal with what it reported, then run purge again."
+    fi
+    return "$status"
+  fi
+  if [[ -n "$WEB_ENV_FILE" ]]; then
+    log "Removing $WEB_ENV_FILE"
+    rm -f -- "$WEB_ENV_FILE" || { err "Could not remove $WEB_ENV_FILE"; return 1; }
+  fi
+}
+
+# --- compose project ------------------------------------------------------
+#
+# Every worktree used to share the compose project `pairmarket-devstack`, so
+# down/reset/purge in one worktree removed another worktree's containers and
+# pgdata volume. The default is now per checkout:
+#
+#   master/main worktree   pairmarket-devstack           (unchanged, so stacks
+#                                                         started before this
+#                                                         rule stay reachable)
+#   any other checkout     pairmarket-devstack-<name>-<hash6>
+#
+# where <name> is the directory name minus a `pairmarket-` prefix, lowercased
+# and sanitized to compose's charset, and <hash6> is the first six hex digits
+# of the SHA-256 of the canonical checkout path, so two clones with the same
+# directory name (or names that sanitize alike) still get distinct projects.
+#
+# `up` writes the name it used to .devstack/compose-project; every other verb
+# reads it back, so a later change to this rule, or a moved worktree, cannot
+# orphan a running stack. An explicit SUI_DEVSTACK_COMPOSE_PROJECT wins over
+# both. `status` prints the name in use.
+COMPOSE_PROJECT_FILE="$STATE_DIR/compose-project"
+
+derived_compose_project() {
+  local base root hash
+  base="$(basename -- "$PROJECT_ROOT")"
+  case "$base" in
+    master|main) printf 'pairmarket-devstack\n'; return 0 ;;
+  esac
+  root="$(canonical_path_m "$PROJECT_ROOT" 2>/dev/null || printf '%s' "$PROJECT_ROOT")"
+  # No hash tool means no per-checkout isolation; refuse with a pointer
+  # rather than fall back to a shared suffix.
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash="$(sha256sum <<< "$root" | cut -c1-6)"
+  elif command -v shasum >/dev/null 2>&1; then
+    hash="$(shasum -a 256 <<< "$root" | cut -c1-6)"
+  else
+    err "Cannot derive the compose project: neither sha256sum nor shasum is available."
+    err "Set SUI_DEVSTACK_COMPOSE_PROJECT explicitly."
+    exit 1
+  fi
+  base="${base#pairmarket-}"
+  base="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
+  printf 'pairmarket-devstack-%s-%s\n' "${base:-worktree}" "$hash"
+}
+
+persisted_compose_project() {
+  local name
+  [[ -f "$COMPOSE_PROJECT_FILE" ]] || return 1
+  IFS= read -r name < "$COMPOSE_PROJECT_FILE" || true
+  [[ "$name" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || return 1
+  printf '%s\n' "$name"
+}
+
+resolve_compose_project() {
+  if [[ -n "${SUI_DEVSTACK_COMPOSE_PROJECT:-}" ]]; then
+    # Compose's own charset; also rules out a trailing newline, which the
+    # command substitution around this call would otherwise strip into a
+    # different, valid name.
+    if [[ ! "$SUI_DEVSTACK_COMPOSE_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+      err "SUI_DEVSTACK_COMPOSE_PROJECT must match ^[a-z0-9][a-z0-9_-]*$; got '${SUI_DEVSTACK_COMPOSE_PROJECT}'."
+      exit 1
+    fi
+    printf '%s\n' "$SUI_DEVSTACK_COMPOSE_PROJECT"
+  elif persisted_compose_project; then
+    :
+  else
+    derived_compose_project
+  fi
+}
+
+persist_compose_project() {
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$1" > "$COMPOSE_PROJECT_FILE"
+}
+
+# Every command except logs takes no arguments; refuse extras so
+# `purge --help` or `reset typo` cannot run a teardown (exit 2, like
+# upstream).
+no_args() {
+  local cmd="$1"; shift
+  if (( $# > 0 )); then
+    err "$cmd takes no arguments (got: $*)."
+    usage >&2
+    exit 2
+  fi
 }
 
 case "${1:-}" in
   up)
+    no_args "$@"
     with_sui_devstack_env up
     prepare_client_env
     with_sui_devstack_env status
     show_pairmarket_status
     ;;
   deploy)
+    no_args "$@"
     publish_contracts
     show_pairmarket_status
     ;;
   status)
+    no_args "$@"
     with_sui_devstack_env status
     show_pairmarket_status
     ;;
@@ -606,6 +962,7 @@ case "${1:-}" in
     with_sui_devstack_env logs "$@"
     ;;
   env)
+    no_args "$@"
     if [[ ! -f "$LOCAL_ENV_FILE" ]]; then
       err "No local env file found. Run scripts/devstack.sh up first."
       exit 1
@@ -613,11 +970,21 @@ case "${1:-}" in
     cat "$LOCAL_ENV_FILE"
     ;;
   down)
+    no_args "$@"
     with_sui_devstack_env down
     ;;
   reset)
-    with_sui_devstack_env reset
+    no_args "$@"
+    bound_teardown_targets
+    # Upstream only deletes under its own $PWD; run it from the checkout
+    # root, as purge does, so `scripts/devstack.sh reset` works from any
+    # directory. The targets are canonical and absolute by now.
+    (cd "$PROJECT_ROOT" && with_sui_devstack_env reset)
     reset_pairmarket_state
+    ;;
+  purge)
+    no_args "$@"
+    purge_pairmarket_state
     ;;
   -h|--help|help)
     usage

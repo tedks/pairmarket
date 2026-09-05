@@ -97,15 +97,100 @@ VITE_PAIRMARKET_MOVE_CONFIG_ID=...
 VITE_PAIRMARKET_ENABLE_BURNER=0
 ```
 
-Use `devstack:reset` when you want a clean chain, deployer, and package
-publish output. Upstream `sui-devstack` owns the Sui Localnet container,
-project-scoped postgres volume, state directory, and logs directory cleanup;
-pairmarket removes only its deployer and package-publish artifacts.
+## Teardown
+
+Three commands take the devstack down. They differ in what survives:
+
+| Command          | Sui containers | Current chain state + logs | Published IDs, env files | Deployer key, ports | `.devstack/` itself (incl. stale layouts) |
+|------------------|----------------|----------------------------|--------------------------|---------------------|-------------------------------------------|
+| `devstack:down`  | stopped        | kept                       | kept                     | kept                | kept                                      |
+| `devstack:reset` | removed        | removed                    | removed                  | kept                | kept                                      |
+| `devstack:purge` | removed        | removed                    | removed                  | removed             | removed                                   |
+
+`reset` only knows the current layout (`.devstack/sui-localnet/{state,logs}`);
+anything left under an older layout survives it. `purge` removes the whole
+configured state root (default `.devstack/`).
+
+`devstack:down` is for coming back to the same chain: `devstack:up` resumes
+it and the published package is still there. It frees nothing on disk.
+
+`devstack:reset` is for starting over on a fresh chain. Upstream
+`sui-devstack` removes the Sui Localnet containers, the project-scoped
+postgres volume, and the state and logs directories; pairmarket then removes
+the package/config/admin-cap IDs, `Published.localnet.toml`, the publish
+output and workdir, and both generated env files, because they all name
+objects on a chain that no longer exists. The deployer key under
+`.devstack/sui-client/` and the generated ports in `.devstack/ports.env` are
+kept: the next `devstack:up` funds the same address from the fresh faucet and
+binds the same ports, and `devstack:deploy` publishes a new package.
 
 ```bash
 nix develop --command pnpm devstack:reset
 nix develop --command pnpm devstack:up
+nix develop --command pnpm devstack:deploy
 ```
+
+`devstack:purge` is for being done with this worktree's devstack. It hands
+the configured state root (default `.devstack/`) to upstream `purge`, which
+removes it with the same root-owned-safe helper it uses for the chain state
+(a plain `rm` first, then a throwaway alpine container for anything the Sui
+container left owned by root), including stale state under older layouts
+that `reset` does not know about. Then it removes `apps/web/.env.local`.
+Nothing in either survives. A state root at a different
+`PAIRMARKET_DEVSTACK_DIR` from an earlier session is a separate tree; purge
+it with that variable set.
+
+```bash
+nix develop --command pnpm devstack:purge
+```
+
+A downed devstack still holds gigabytes of RocksDB chain state under
+`.devstack/sui-localnet/state`, and nothing reclaims it for you. Purge when
+you are done; the devstack section of `AGENTS.md` says when.
+
+`devstack:purge` needs a sui-devstack checkout whose `sui-localnet.sh` has
+the `purge` command (master with sui-devstack PR #4). An older checkout fails
+with a pointer and removes nothing.
+
+Because `reset` and `purge` delete things, and `purge` hands a whole tree
+to upstream (which may finish the job as root), every deletion target is
+pinned before any destructive upstream command runs (the harmless
+`--help` probe of the upstream script comes first): `PAIRMARKET_DEVSTACK_DIR`,
+`PAIRMARKET_WEB_ENV_FILE`, and any `SUI_DEVSTACK_STATE_DIR` /
+`SUI_DEVSTACK_LOGS_DIR` you exported are each resolved to an absolute
+canonical path (a relative value is taken against your current directory,
+and a path that does not exist yet is fine), their final component must not
+be a symlink, an existing state or upstream directory must be a directory
+and an existing web env file a regular file, and the result must lie
+strictly inside this checkout. Location is not enough: the state root must
+be, or lie under, a directory named `.devstack*`; an exported
+`SUI_DEVSTACK_STATE_DIR` / `SUI_DEVSTACK_LOGS_DIR` must lie strictly inside
+the state root and outside `sui-client/`; and the web env file may not name
+anything `reset` keeps (the keystore directory, `ports.env`,
+`compose-project`). A value containing a newline is refused outright. The
+canonical path is what gets deleted and what upstream receives, whichever
+directory you ran the command from (`reset` and `purge` both run upstream
+from the checkout root). Anything else is refused with nothing removed;
+clean up external state yourself. One exception is gentle rather than a
+refusal: a symlinked `apps/web/.env.local` is not followed, so neither the
+link nor its target is removed on its account (either may still go if it
+sits inside a directory being removed, such as the state root); a note is
+printed, and teardown proceeds. `reset`, `purge`, `up`, `down`,
+`status`, `deploy` and `env` take no arguments and exit 2 if given any, so
+`purge --help` cannot purge.
+
+The compose project name defaults to `pairmarket-devstack` in the `master`
+(or `main`) worktree and `pairmarket-devstack-<name>-<hash>` elsewhere:
+the worktree directory name with the `pairmarket-` prefix dropped, plus the
+first six hex digits of a SHA-256 of the canonical checkout path, so two
+worktrees, or two clones with the same directory name, never share a project
+or a `pgdata` volume, and one checkout's `down`/`reset`/`purge` cannot tear
+down another's. `devstack:up` records the name it used in
+`.devstack/compose-project`; every other command reads it back, so a moved
+worktree or a later change to this rule cannot orphan a running stack.
+`SUI_DEVSTACK_COMPOSE_PROJECT` overrides both, and `devstack:status` prints
+the name in use. Stacks started before this rule live under
+`pairmarket-devstack` and are reachable from `master` or with the override.
 
 Override ports with the upstream variables:
 
@@ -132,8 +217,16 @@ The chosen or overridden ports are persisted here:
 `devstack:up` preflights the selected host ports before asking Docker Compose
 to bind them. If a port is already occupied by another local stack, the command
 fails with the selected RPC/faucet/GraphQL ports instead of starting a half
-configured stack. Use `devstack:reset` to discard the persisted generated ports
-and choose a fresh set.
+configured stack. `devstack:reset` keeps the persisted ports (unless you
+override them in the environment, which `up`, and any other command run
+while `.devstack/` exists, writes back to `ports.env`; `purge` touches no
+ports); delete `.devstack/ports.env` (or run `devstack:purge`) to choose a
+fresh set. Only `devstack:up` creates `.devstack/`; after a purge, `status`
+and `down` leave it gone. `devstack:up` records the compose project only
+after upstream has started the stack, so a failed preflight or a failed
+upstream start cannot re-point the record away from a stack still running
+under the previous name (a half-started stack under an override is still
+reachable with that override set).
 
 ## Package Publish
 
