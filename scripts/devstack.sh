@@ -355,17 +355,27 @@ with_sui_devstack_env() {
     up)
       ensure_devstack_ports up
       preflight_devstack_ports
-      # Record the project only once every local check has passed, so a
-      # failed preflight cannot re-point the record away from a stack that
-      # is still running under the previous name.
-      persist_compose_project "$SUI_DEVSTACK_COMPOSE_PROJECT"
       ;;
     *)
       ensure_devstack_ports "${1:-}"
       ;;
   esac
 
-  "$(sui_devstack_script)" "$@"
+  # Upstream's status is this function's status, explicitly: callers run it
+  # inside `( ... ) || status=$?`, where `set -e` is suspended, so nothing
+  # after the upstream call may be allowed to mask a failure.
+  local status=0
+  "$(sui_devstack_script)" "$@" || status=$?
+
+  # Record the project only once upstream has actually started it, so a
+  # failed preflight or a failed upstream `up` (docker down, image missing,
+  # RPC never ready) cannot re-point the record away from a stack that is
+  # still running under the previous name. A half-started stack under an
+  # override is still reachable with that override set.
+  if (( status == 0 )) && [[ "${1:-}" == up ]]; then
+    persist_compose_project "$SUI_DEVSTACK_COMPOSE_PROJECT"
+  fi
+  return "$status"
 }
 
 load_sui_env() {
@@ -764,9 +774,10 @@ bound_teardown_targets() {
   STATE_DIR="$(bounded_target PAIRMARKET_DEVSTACK_DIR dir "$STATE_DIR")" || exit 1
   require_devstack_shaped "$STATE_DIR"
   if [[ "$WEB_ENV_FILE" != *$'\n'* ]] && web_lexical="$(lexical_path "$WEB_ENV_FILE")" && [[ -L "$web_lexical" ]]; then
-    # A developer who symlinked .env.local somewhere deliberate keeps both
-    # the link and its target; deploy still writes through it.
-    log "Note: $WEB_ENV_FILE is a symlink; leaving it and its target alone."
+    # A developer who symlinked .env.local somewhere deliberate keeps the
+    # target (and the link, unless the link sits inside a directory being
+    # removed); deploy still writes through it.
+    log "Note: $WEB_ENV_FILE is a symlink; not following it. Its target is left alone (and so is the link, unless it sits inside a directory being removed)."
     WEB_ENV_FILE=""
   else
     WEB_ENV_FILE="$(bounded_target PAIRMARKET_WEB_ENV_FILE file "$WEB_ENV_FILE")" || exit 1
@@ -827,7 +838,11 @@ purge_pairmarket_state() {
   # what it names.
   (cd "$PROJECT_ROOT" && with_sui_devstack_env purge "$STATE_DIR") || status=$?
   if (( status != 0 )); then
-    err "Upstream purge exited $status; leaving $WEB_ENV_FILE in place. Deal with what it reported, then run purge again."
+    if [[ -n "$WEB_ENV_FILE" ]]; then
+      err "Upstream purge exited $status; leaving $WEB_ENV_FILE in place. Deal with what it reported, then run purge again."
+    else
+      err "Upstream purge exited $status. Deal with what it reported, then run purge again."
+    fi
     return "$status"
   fi
   if [[ -n "$WEB_ENV_FILE" ]]; then

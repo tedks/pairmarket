@@ -143,6 +143,12 @@ case "\${1:-}" in
     ;;
   down)
     ;;
+  up)
+    if [[ "\${FAKE_UPSTREAM_UP_FAIL:-0}" == 1 ]]; then
+      echo "fake upstream: RPC did not become ready" >&2
+      exit 1
+    fi
+    ;;
   *)
     printf 'unknown command %s\\n' "\${1:-}" >&2
     exit 2
@@ -799,10 +805,7 @@ try {
       symlinkSync(target, s.webEnv);
       const result = runDevstack(s.env, command);
       assert.equal(result.status, 0, result.message);
-      assert.match(
-        result.stdout,
-        /is a symlink; leaving it and its target alone/,
-      );
+      assert.match(result.stdout, /is a symlink; not following it/);
       assert.ok(existsSync(target), "symlink target intact");
       assert.ok(
         existsSync(s.webEnv) || command === "purge",
@@ -846,6 +849,32 @@ try {
     } finally {
       for (const server of servers) server.close();
     }
+  }
+
+  {
+    // Likewise when preflight passes but upstream `up` itself fails: the
+    // record moves only once upstream has started the stack.
+    const { stateDir, upstream, env } = scenario("persist-after-upstream", {
+      project: "recorded-a",
+    });
+    const result = runDevstack(
+      {
+        ...env,
+        SUI_DEVSTACK_COMPOSE_PROJECT: "override-b",
+        FAKE_UPSTREAM_UP_FAIL: "1",
+      },
+      "up",
+    );
+    assert.equal(result.status, 1, result.message);
+    assert.match(
+      captured(upstream.capture),
+      /^arg=up\n.*\nproject=override-b$/m,
+    );
+    assert.equal(
+      readFileSync(join(stateDir, "compose-project"), "utf8"),
+      "recorded-a\n",
+      "a failed upstream up leaves the recorded project untouched",
+    );
   }
 
   {
