@@ -109,7 +109,7 @@ Three commands take the devstack down. They differ in what survives:
 
 `reset` only knows the current layout (`.devstack/sui-localnet/{state,logs}`);
 anything left under an older layout survives it. `purge` removes the whole
-tree.
+configured state root (default `.devstack/`).
 
 `devstack:down` is for coming back to the same chain: `devstack:up` resumes
 it and the published package is still there. It frees nothing on disk.
@@ -131,11 +131,14 @@ nix develop --command pnpm devstack:deploy
 ```
 
 `devstack:purge` is for being done with this worktree's devstack. It hands
-the whole `.devstack/` tree to upstream `purge`, which removes it with the
-same root-owned-safe helper it uses for the chain state (a plain `rm` first,
-then a throwaway alpine container for anything the Sui container left owned
-by root), including stale state under older layouts that `reset` does not
-know about. Then it removes `apps/web/.env.local`. Nothing survives.
+the configured state root (default `.devstack/`) to upstream `purge`, which
+removes it with the same root-owned-safe helper it uses for the chain state
+(a plain `rm` first, then a throwaway alpine container for anything the Sui
+container left owned by root), including stale state under older layouts
+that `reset` does not know about. Then it removes `apps/web/.env.local`.
+Nothing in either survives. A state root at a different
+`PAIRMARKET_DEVSTACK_DIR` from an earlier session is a separate tree; purge
+it with that variable set.
 
 ```bash
 nix develop --command pnpm devstack:purge
@@ -159,11 +162,20 @@ canonical path (a relative value is taken against your current directory,
 and a path that does not exist yet is fine), their final component must not
 be a symlink, an existing state or upstream directory must be a directory
 and an existing web env file a regular file, and the result must lie
-strictly inside this checkout (the web env file may also live inside the
-state directory). The canonical path is
-what gets deleted and what upstream receives, whichever directory you ran
-the command from. Anything else is refused with nothing removed; clean up
-external state yourself.
+strictly inside this checkout. Location is not enough: the state root must
+be, or lie under, a directory named `.devstack*`; an exported
+`SUI_DEVSTACK_STATE_DIR` / `SUI_DEVSTACK_LOGS_DIR` must lie strictly inside
+the state root and outside `sui-client/`; and the web env file may not name
+anything `reset` keeps (the keystore directory, `ports.env`,
+`compose-project`). A value containing a newline is refused outright. The
+canonical path is what gets deleted and what upstream receives, whichever
+directory you ran the command from (`reset` and `purge` both run upstream
+from the checkout root). Anything else is refused with nothing removed;
+clean up external state yourself. One exception is gentle rather than a
+refusal: a symlinked `apps/web/.env.local` is left alone, link and target,
+with a note, and teardown proceeds. `reset`, `purge`, `up`, `down`,
+`status`, `deploy` and `env` take no arguments and exit 2 if given any, so
+`purge --help` cannot purge.
 
 The compose project name defaults to `pairmarket-devstack` in the `master`
 (or `main`) worktree and `pairmarket-devstack-<name>-<hash>` elsewhere:
@@ -204,10 +216,13 @@ The chosen or overridden ports are persisted here:
 to bind them. If a port is already occupied by another local stack, the command
 fails with the selected RPC/faucet/GraphQL ports instead of starting a half
 configured stack. `devstack:reset` keeps the persisted ports (unless you
-override them in the environment, which every command writes back to
-`ports.env`); delete `.devstack/ports.env` (or run `devstack:purge`) to
-choose a fresh set. Only `devstack:up` creates `.devstack/`; after a purge,
-`status` and `down` leave it gone.
+override them in the environment, which `up`, and any other command run
+while `.devstack/` exists, writes back to `ports.env`; `purge` touches no
+ports); delete `.devstack/ports.env` (or run `devstack:purge`) to choose a
+fresh set. Only `devstack:up` creates `.devstack/`; after a purge, `status`
+and `down` leave it gone. `devstack:up` records the compose project only
+after its port preflight passes, so a failed `up` cannot re-point the
+record away from a stack still running under the previous name.
 
 ## Package Publish
 

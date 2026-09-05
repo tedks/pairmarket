@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import net from "node:net";
 
 // Exercises the teardown ladder of scripts/devstack.sh against a fake
 // upstream sui-localnet.sh (selected via SUI_DEVSTACK_SCRIPT), so no docker
@@ -30,9 +31,13 @@ import { createHash } from "node:crypto";
 // two arguments, plus the compose project and cwd it saw) and emulates
 // what the real wrapper deletes: on `reset` the configured state and logs
 // directories, on `purge` those plus every extra directory it is given.
-// It refuses (exit 99) to delete anything outside its own scenario
-// directory, so a wrapper bug cannot reach past the test.
-// FAKE_UPSTREAM_PURGE_FAIL=1 makes `purge` exit 1 after deleting nothing.
+// It refuses (exit 99) to delete anything whose canonical path is outside
+// its own scenario directory, so a wrapper bug cannot reach past the test,
+// and it applies the real upstream's rule that every directory it deletes
+// must lie strictly under its own $PWD (exit 1, nothing deleted), so a
+// wrapper that invokes it from the wrong directory fails here as it would
+// for real. FAKE_UPSTREAM_PURGE_FAIL=1 makes `purge` exit 1 after deleting
+// nothing.
 //
 // purge only accepts a state root strictly inside the checkout, so the
 // scenario directories live under the repo as .devstack-test-* (ignored by
@@ -82,14 +87,25 @@ set -euo pipefail
   printf 'cwd=%s\\n' "$PWD"
 } >> "${capture}"
 
-# Delete only inside this scenario; anything else is a wrapper bug.
+# Delete only inside this scenario (canonical path, so \`..\` and symlinks
+# cannot slip out); anything else is a wrapper bug. Like the real upstream,
+# refuse (exit 1, nothing deleted) any directory not strictly under \$PWD.
 guarded_rm() {
-  local d
+  local d canon pwd_canon
+  pwd_canon="$(readlink -f -- "$PWD")"
   for d in "$@"; do
-    case "$d" in
-      "${dir}"/*) rm -r -f -- "$d" ;;
+    canon="$(readlink -m -- "$d")"
+    case "$canon" in
+      "${dir}"/*) ;;
       *) echo "fake upstream: refusing to delete outside the scenario: $d" >&2; exit 99 ;;
     esac
+    case "$canon" in
+      "$pwd_canon"/*) ;;
+      *) echo "fake upstream: $d is not under \$PWD ($PWD); refusing" >&2; exit 1 ;;
+    esac
+  done
+  for d in "$@"; do
+    rm -r -f -- "$(readlink -m -- "$d")"
   done
 }
 remove_configured_dirs() {
@@ -622,6 +638,214 @@ try {
     }
     assert.ok(existsSync(join(outside, "state/db/CURRENT")));
     assert.ok(existsSync(join(outside, "logs/sui.log")));
+  }
+
+  {
+    // reset from a subdirectory: the wrapper must run upstream from the
+    // checkout root (the fake applies upstream's under-$PWD rule).
+    const { stateDir, webEnv, upstream, env } = scenario("reset-subdir");
+    const result = runDevstack(env, "reset", join(root, "scripts"));
+    assert.equal(result.status, 0, result.message);
+    const log = captured(upstream.capture);
+    assert.match(
+      log,
+      new RegExp(`^arg=reset\\n.*\\nproject=.*\\ncwd=${escapeRe(root)}$`, "m"),
+      "reset runs upstream from the checkout root",
+    );
+    assertAll(stateDir, KEPT_BY_RESET, true, "reset from subdir");
+    assertAll(stateDir, CHAIN_BOUND_FILES, false, "reset from subdir");
+    assertAll(stateDir, CURRENT_CHAIN_STATE, false, "reset from subdir");
+    assert.equal(existsSync(webEnv), false);
+  }
+
+  {
+    // Extra arguments are refused (exit 2) before anything is torn down:
+    // `purge --help` must not purge.
+    const s = scenario("extra-args");
+    for (const [command, extra] of [
+      ["purge", "--help"],
+      ["reset", "typo"],
+      ["down", "x"],
+      ["status", "x"],
+      ["up", "x"],
+    ]) {
+      const result = spawnSync("bash", [script, command, extra], {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...cleanEnv(), ...s.env },
+      });
+      assert.equal(
+        result.status,
+        2,
+        `${command} ${extra}: exit ${result.status}\n${result.stderr}`,
+      );
+      assert.match(result.stderr, /takes no arguments/);
+    }
+    assert.doesNotMatch(
+      captured(s.upstream.capture),
+      /^arg=(reset|purge|down|up)$/m,
+    );
+    assertAll(s.stateDir, EVERYTHING, true, "extra args");
+    assert.ok(existsSync(s.webEnv));
+  }
+
+  {
+    // A newline in a deletion-target variable is refused before command
+    // substitution could strip it into a different path.
+    const s = scenario("newline");
+    for (const [variable, value] of [
+      ["PAIRMARKET_DEVSTACK_DIR", `${s.stateDir}\n`],
+      ["PAIRMARKET_WEB_ENV_FILE", `${s.webEnv}\n`],
+      ["SUI_DEVSTACK_STATE_DIR", `${s.stateDir}/sui-localnet/state\n`],
+    ]) {
+      for (const command of ["reset", "purge"]) {
+        const result = runDevstack({ ...s.env, [variable]: value }, command);
+        assertRefused(result, /contains a newline/, s);
+      }
+    }
+    for (const bad of ["pairmarket-devstack-other\n", "Bad Name", "-leading"]) {
+      const result = runDevstack(
+        { ...s.env, SUI_DEVSTACK_COMPOSE_PROJECT: bad },
+        "down",
+      );
+      assert.equal(
+        result.status,
+        1,
+        `${JSON.stringify(bad)}: ${result.message}`,
+      );
+      assert.match(result.stderr, /SUI_DEVSTACK_COMPOSE_PROJECT must match/);
+    }
+    assert.doesNotMatch(captured(s.upstream.capture), /^arg=down$/m);
+  }
+
+  {
+    // Location inside the checkout is not enough: the state root must be,
+    // or lie under, a directory named .devstack*. apps/ is not.
+    const s = scenario("shape-root");
+    for (const command of ["reset", "purge"]) {
+      const result = runDevstack(
+        { ...s.env, PAIRMARKET_DEVSTACK_DIR: join(root, "apps") },
+        command,
+      );
+      assert.equal(result.status, 1, `${command}: ${result.message}`);
+      assert.match(result.stderr, /directory named \.devstack\*/);
+    }
+    assert.doesNotMatch(captured(s.upstream.capture), /^arg=(reset|purge)$/m);
+    assert.ok(existsSync(join(root, "apps/web/package.json")), "apps/ intact");
+    assertAll(s.stateDir, EVERYTHING, true, "shape-root");
+  }
+
+  {
+    // Exported upstream dirs must lie strictly inside the state root and
+    // outside sui-client/, or reset would delete what it promises to keep.
+    for (const [value, pattern] of [
+      [(sd) => sd, /strictly inside the state root/],
+      [(sd) => `${sd}/`, /strictly inside the state root/],
+      [(sd) => `${sd}/sui-client`, /deployer key directory/],
+      [(sd) => `${sd}/sui-client/inner`, /deployer key directory/],
+    ]) {
+      for (const command of ["reset", "purge"]) {
+        for (const variable of [
+          "SUI_DEVSTACK_STATE_DIR",
+          "SUI_DEVSTACK_LOGS_DIR",
+        ]) {
+          const s = scenario("shape-updir");
+          const result = runDevstack(
+            { ...s.env, [variable]: value(s.stateDir) },
+            command,
+          );
+          assertRefused(result, pattern, s);
+        }
+      }
+    }
+  }
+
+  {
+    // The web env file may not name anything reset keeps.
+    for (const relative of [
+      "sui-client/sui.keystore",
+      "sui-client",
+      "ports.env",
+      "compose-project",
+    ]) {
+      for (const command of ["reset", "purge"]) {
+        const s = scenario("shape-webenv");
+        const result = runDevstack(
+          { ...s.env, PAIRMARKET_WEB_ENV_FILE: join(s.stateDir, relative) },
+          command,
+        );
+        assert.equal(
+          result.status,
+          1,
+          `${command} ${relative}: ${result.message}`,
+        );
+        assert.match(
+          result.stderr,
+          /names something reset keeps|not a regular file/,
+        );
+        assertAll(s.stateDir, EVERYTHING, true, `webenv ${relative}`);
+      }
+    }
+  }
+
+  {
+    // A symlinked web env file is left alone (link and target), with a
+    // note, and teardown proceeds.
+    for (const command of ["reset", "purge"]) {
+      const s = scenario(`webenv-symlink-${command}`);
+      const target = join(s.dir, "shared.env");
+      writeFileSync(target, "SHARED=1\n");
+      rmSync(s.webEnv);
+      symlinkSync(target, s.webEnv);
+      const result = runDevstack(s.env, command);
+      assert.equal(result.status, 0, result.message);
+      assert.match(
+        result.stdout,
+        /is a symlink; leaving it and its target alone/,
+      );
+      assert.ok(existsSync(target), "symlink target intact");
+      assert.ok(
+        existsSync(s.webEnv) || command === "purge",
+        "link intact after reset",
+      );
+      assert.equal(readFileSync(target, "utf8"), "SHARED=1\n");
+      if (command === "reset")
+        assertAll(s.stateDir, KEPT_BY_RESET, true, "reset");
+      else assert.equal(existsSync(s.stateDir), false);
+    }
+  }
+
+  {
+    // `up` must not re-point the recorded compose project until every
+    // local check has passed: occupy the persisted ports so preflight
+    // fails, and the record must still name the old project.
+    const { stateDir, env } = scenario("persist-after-preflight", {
+      project: "recorded-a",
+    });
+    const servers = [];
+    for (const port of Object.values(PORTS)) {
+      const server = net.createServer();
+      await new Promise((resolveListen) => {
+        server.once("error", () => resolveListen());
+        server.listen(Number(port), "127.0.0.1", () => resolveListen());
+      });
+      servers.push(server);
+    }
+    try {
+      const result = runDevstack(
+        { ...env, SUI_DEVSTACK_COMPOSE_PROJECT: "override-b" },
+        "up",
+      );
+      assert.equal(result.status, 1, result.message);
+      assert.match(result.stderr, /ports are already in use/);
+      assert.equal(
+        readFileSync(join(stateDir, "compose-project"), "utf8"),
+        "recorded-a\n",
+        "a failed preflight leaves the recorded project untouched",
+      );
+    } finally {
+      for (const server of servers) server.close();
+    }
   }
 
   {

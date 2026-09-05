@@ -51,12 +51,25 @@ esac
   return { fake, capture };
 }
 
+// Never let a developer's exported SUI_DEVSTACK_* / PAIRMARKET_* values
+// leak into a run that generates ports or deletes things.
+function cleanEnv() {
+  const env = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith("SUI_DEVSTACK_") || key.startsWith("PAIRMARKET_")) {
+      continue;
+    }
+    env[key] = value;
+  }
+  return env;
+}
+
 function runDevstack(env, command = "status") {
   return spawnSync("bash", [script, command], {
     cwd: root,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...cleanEnv(),
       // Keep reset/purge in these tests away from the checkout's real
       // apps/web/.env.local.
       PAIRMARKET_WEB_ENV_FILE: join(

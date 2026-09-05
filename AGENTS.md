@@ -117,8 +117,8 @@ differ in what survives; see [docs/devstack.md](docs/devstack.md#teardown).
   package. Use it between sessions on the same task.
 - `reset` starts over on a fresh chain: chain state, logs, publish output
   and generated env files go; the deployer key and generated ports stay.
-- `purge` removes the whole `.devstack/` tree and `apps/web/.env.local`.
-  Nothing survives.
+- `purge` removes the configured state root (default `.devstack/`) and
+  `apps/web/.env.local`. Nothing in them survives.
 
 A downed devstack still holds gigabytes of RocksDB chain state, and nothing
 reclaims it for you: tower0 ran out of disk on 2026-09-03 on devstacks that
