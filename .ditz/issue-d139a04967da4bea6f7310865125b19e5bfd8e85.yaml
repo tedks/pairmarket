@@ -15,8 +15,8 @@ type: task
 component: devstack
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-09-03T22:32:31-00:00
 references: []
 log_events:
@@ -24,3 +24,17 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-09-06T03:32:41-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Done on tower0 2026-09-06 against sui-devstack/sui-localnet:1.73.2-r1
+    built from sui-devstack PR #3 (d8eaff7): up -> deploy -> reset -> up -> deploy
+    -> purge via pnpm devstack:* in ~/Projects/pairmarket/master. reset kept sui-client/,
+    ports.env and compose-project byte-identical and removed every chain-bound file,
+    the chain state and the pgdata volume; the second up came back on the same RPC
+    URL (127.0.0.1:22401) with the same deployer 0x063aa571...91e0 funded from the
+    fresh faucet; the second deploy published a new package (0x802bab56... vs 0x59db77d0...);
+    purge removed .devstack, apps/web/.env.local, the containers and the pgdata volume,
+    and status/down afterwards did not recreate .devstack. Nothing was root-owned
+    (LOCAL_UID in effect), so the root-container fallback was not exercised here;
+    it was exercised separately on scratch data during PR #4.'
