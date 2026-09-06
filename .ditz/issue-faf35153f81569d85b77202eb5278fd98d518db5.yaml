@@ -1,0 +1,22 @@
+id: faf35153f81569d85b77202eb5278fd98d518db5
+title: Drop branch-specific sui-devstack search-path candidates from scripts/devstack.sh
+desc: 'find_sui_devstack_script hardcodes worktree paths for sui-devstack branches
+  (agent/sui-173-localnet, agent/consumer-contract) ahead of master/. On tower0 that
+  made pairmarket run whatever the sui-173 worktree contained, which was 10 commits
+  behind master until it was rebased on 2026-09-05. Once sui-devstack PR #3 (the 1.73.2
+  bump) merges and its worktrees are removed, those candidates are dead cruft and
+  a footgun for the next branch. Reduce the search path to SUI_DEVSTACK_SCRIPT, SUI_DEVSTACK_HOME,
+  then master/ (sibling and ~/Projects), and say so in docs/devstack.md.'
+type: task
+component: devstack
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-09-06T02:54:37-00:00
+references: []
+log_events:
+- time: 2026-09-06T02:54:37-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
