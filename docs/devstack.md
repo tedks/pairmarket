@@ -28,8 +28,9 @@ localnet/docker-compose.sui-localnet.yml
 of vendoring those behaviors.
 
 By default the wrapper looks only for the `master` checkout of sui-devstack:
-the sibling bare-repo layout (`../../../sui-devstack/master` relative to this
-checkout) first, then `~/Projects/sui-devstack/master`. Branch worktrees are
+the sibling project next to this bare repo (`../../sui-devstack/master`
+relative to this checkout, so `~/Projects/pairmarket/<worktree>` finds
+`~/Projects/sui-devstack/master`) first, then `~/Projects/sui-devstack/master`. Branch worktrees are
 never picked up implicitly; a stale one once ran an old wrapper on tower0 for
 months. To use a different checkout or branch, point at it explicitly:
 
