@@ -24,13 +24,14 @@ localnet/docker-compose.sui-localnet.yml
 ```
 
 `localnet/sui-localnet.sh` is the stable command surface. Pairmarket calls its
-`up`, `down`, `reset`, `status`, `logs`, and `env` commands instead of
-vendoring those behaviors.
+`up`, `down`, `reset`, `purge`, `status`, `logs`, and `env` commands instead
+of vendoring those behaviors.
 
-By default the wrapper searches for a sibling Sui 1.73 localnet worktree at
-`~/Projects/sui-devstack/agent/sui-173-localnet`, then falls back to
-`~/Projects/sui-devstack/master`. To use a different checkout or branch, point
-at it explicitly:
+By default the wrapper looks only for the `master` checkout of sui-devstack:
+the sibling bare-repo layout (`../../../sui-devstack/master` relative to this
+checkout) first, then `~/Projects/sui-devstack/master`. Branch worktrees are
+never picked up implicitly; a stale one once ran an old wrapper on tower0 for
+months. To use a different checkout or branch, point at it explicitly:
 
 ```bash
 SUI_DEVSTACK_HOME=~/Projects/sui-devstack/master \
