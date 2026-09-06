@@ -88,12 +88,15 @@ find_sui_devstack_script() {
     return 0
   fi
 
+  # Only the master checkout of sui-devstack is looked up by default: the
+  # sibling project in the same parent directory as this bare repo
+  # (~/Projects/pairmarket/<worktree> -> ~/Projects/sui-devstack/master),
+  # then ~/Projects. Branch worktrees are never resolved implicitly (a stale
+  # one silently ran an old wrapper on tower0 for months); point
+  # SUI_DEVSTACK_HOME at one when you mean it.
   local candidate
   for candidate in \
-    "$PROJECT_ROOT/../../../sui-devstack/agent/sui-173-localnet/localnet/sui-localnet.sh" \
-    "$PROJECT_ROOT/../../../sui-devstack/master/localnet/sui-localnet.sh" \
-    "$PROJECT_ROOT/../../../sui-devstack/agent/consumer-contract/localnet/sui-localnet.sh" \
-    "$HOME/Projects/sui-devstack/agent/sui-173-localnet/localnet/sui-localnet.sh" \
+    "$PROJECT_ROOT/../../sui-devstack/master/localnet/sui-localnet.sh" \
     "$HOME/Projects/sui-devstack/master/localnet/sui-localnet.sh"; do
     if [[ -x "$candidate" ]]; then
       printf '%s\n' "$candidate"
@@ -101,7 +104,7 @@ find_sui_devstack_script() {
     fi
   done
 
-  printf '%s\n' "$PROJECT_ROOT/../../../sui-devstack/master/localnet/sui-localnet.sh"
+  printf '%s\n' "$PROJECT_ROOT/../../sui-devstack/master/localnet/sui-localnet.sh"
 }
 
 sui_devstack_script() {
