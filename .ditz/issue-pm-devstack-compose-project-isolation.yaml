@@ -9,8 +9,8 @@ type: task
 component: devstack
 release:
 reporter: Ted Smith <tedks@riseup.net>
-status: unstarted
-disposition:
+status: closed
+disposition: fixed
 creation_time: 2026-07-07T00:58:43-00:00
 references: []
 log_events:
@@ -18,3 +18,11 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-09-06T01:31:49-00:00
+  who: Ted Smith
+  what: 'closed: fixed'
+  comment: 'Decided and implemented in PR #22 (merged 2026-09-05 as 63883f4): the
+    wrapper derives a stable per-checkout compose project (pairmarket-devstack in
+    master/main, pairmarket-devstack-<name>-<hash6> elsewhere), records it in .devstack/compose-project
+    on a successful up, and SUI_DEVSTACK_COMPOSE_PROJECT still overrides. Same ground
+    as 8a878a00, closed the same day.'
