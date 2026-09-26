@@ -1,0 +1,29 @@
+id: pm-move-committee-threshold
+title: Enforce a verdict threshold and keep the creator off the committee
+desc: "Two concrete defects in the dispute path, both live on master:\n\n1. The web
+  app appends the creator to the resolver committee\n   (apps/web/src/sui/market.ts,
+  the resolver_committee argument), so a\n   creator sits on the committee that resolves
+  disputes about their own\n   market.\n2. Move takes the first verdict from any single
+  committee member with no\n   threshold and no signature verification\n   (contracts/pairmarket/sources/market.move,
+  submit_committee_verdict),\n   despite the design specifying 3-of-5. The code carries
+  a comment saying\n   the threshold will replace it.\n\nTogether these mean a creator
+  can unilaterally decide any disputed market\nthey created. That is a real-money
+  blocker, not a polish item.\n\nAlso: evidence_hash is accepted by submit_attestation
+  and then discarded\n(let _ = evidence_hash), so there is no evidence trail at all.
+  And\nConfig.paused is checked only in create_market, so pause is a creation freeze\nrather
+  than a circuit breaker.\n\nThe pivot in pm-pivot-2026-09-10 changes who resolves,
+  so fix this in the\nshape that pm-resolution-friend-attestation settles on rather
+  than patching\nthe superseded committee design."
+type: bugfix
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-09-26T19:49:43-00:00
+references: []
+log_events:
+- time: 2026-09-26T19:49:43-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
