@@ -16,3 +16,9 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-09-26T19:50:33-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Likely moot after the 2026-09-10 pivot (pm-pivot-2026-09-10): unilateral
+    subject withdrawal presupposes subject consent, which no longer exists. Ted to
+    confirm.'
