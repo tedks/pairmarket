@@ -1,0 +1,77 @@
+id: pm-pivot-2026-09-10
+title: 'Decision record: 2026-09-10 product pivot and 2026-09-26 server decision'
+desc: "Durable record of the product pivot Ted made on 2026-09-10, plus the server\ndecision
+  of 2026-09-26. Before this, the pivot existed only in a session\ntranscript (da633dc2-9757-4eb8-b206-0d4b04f1e5c9).
+  docs/design.md still\ndescribes the superseded design; see pm-docs-design-superseded-sections.\n\nDECIDED
+  BY TED\n\n1. Subjects do not see markets about themselves, and there is no per-market\n
+  \  subject consent. Being on the platform is consent to being a subject.\n   This
+  is deliberate, not the bug an earlier audit called it: the\n   isMarketVisible filter
+  in apps/web/src/sui/state.ts that returns false for\n   subjects is correct behaviour.
+  Supersedes the design doc requirement that\n   both subjects consent before trading.\n\n2.
+  Markets resolve by asking the friends of the subjects, not the subjects.\n   The
+  question put to the friend set is the operationalization itself: are A\n   and B
+  dating, did they last N dates, have they broken up. Supersedes\n   subject co-attestation
+  as the MVP mechanism.\n\n3. Challenge bonds are configurable and escalating: sharply
+  more expensive\n   per open challenge a user already has, and radically more expensive
+  once\n   challenges have resolved against that user.\n\n4. The localStorage market-content
+  store is wrong and must go. Today market\n   title, prompt and operationalization
+  live in the creator browser\n   localStorage, so no invitee can read the market
+  they are betting on.\n\n5. Walrus may be dropped entirely. SEAL is retained, enforcing
+  content\n   privacy to the friends of the subjects. SEAL is storage-agnostic and\n
+  \  explicitly supports on-chain ciphertext, so dropping Walrus is coherent\n   and
+  also removes the blob-renewal problem.\n\n6. 2026-09-26: a server is accepted as
+  necessary. The earlier no-server\n   constraint is withdrawn. This unblocks Twitter
+  OAuth and the custodial\n   wallet, which cannot exist without one, and reopens
+  the question of where\n   ciphertext lives now that a server is available.\n\nTWO
+  PROBLEMS THE PIVOT DOES NOT CLOSE\n\nA. Friend resolution makes the bettors the
+  resolvers. In a friend group the\n   eligible attestor set and the participant set
+  are nearly identical, and\n   pari-mutuel payouts reward attesting your own position
+  regardless of what\n   happened. Absent a cost the outcome is whichever side has
+  more voters.\n   Recommendation: bond attestation itself and slash attestors who
+  end up\n   against the final outcome, which makes it a Schelling game on a socially\n
+  \  known fact rather than a vote among interested parties. Do not build\n   separate
+  attestation and challenge primitives; build one bonded ladder.\n   Tracked in pm-resolution-friend-attestation.\n\nB.
+  The escalating bond needs identity continuity, which does not exist.\n   create_profile
+  is ungated, handles are unverified and there is no\n   uniqueness check, so the
+  cheap counter to a rising bond is a fresh\n   Profile. The fix falls out of the
+  existing social graph: standing to\n   challenge should require an accepted Friendship
+  with a subject, and\n   friendship requires the counterparty to accept on-chain,
+  so a fresh\n   Profile has no standing. Keep the history on the Profile so it cannot
+  be\n   shed without also shedding the friendships that grant the right to act.\n
+  \  Tracked in pm-profile-sybil-gating.\n\nVERIFIED FACTS THAT CONSTRAIN THE PLAN\n\n-
+  SEAL is storage-agnostic; ciphertext can live on-chain, off-chain, or in\n  Walrus.
+  SEAL never stores bytes itself.\n- SEAL key servers are servers. Each holds an identity-based-encryption\n
+  \ master secret and a threshold is required. The committee is chosen from\n  third-party
+  operators. The achievable claim is therefore not that nobody\n  can read the content,
+  but that a colluding threshold of named operators\n  could. This belongs in product
+  copy.\n- On-chain ciphertext is permanent: no expiry, no delete, and a future\n
+  \ key-server compromise retroactively opens every market ever created.\n  Walrus
+  blobs at least lapse.\n- X/Twitter is not a zkLogin provider. zkLogin supports Google,
+  Facebook,\n  Twitch and Apple fully, with Slack, Kakao and Microsoft partial, because\n
+  \ X does not issue the OIDC id_token zkLogin requires. Any eventual\n  migration
+  off custody via zkLogin therefore cannot use Twitter as the\n  identity provider.\n\nSTILL
+  OPEN, ALL TED'S\n\n- Where SEAL-encrypted content lives now that a server is accepted:
+  on-chain,\n  on the server, or Walrus after all (pm-privacy-content-storage-decision).\n-
+  If on-chain: accept or mitigate ciphertext permanence.\n- Is attestation itself
+  bonded and slashable (recommended yes).\n- Where a slashed bond goes: winning pool
+  (recommended), fee recipient, or\n  burn.\n- Does the privacy copy change to name
+  the SEAL key-server trust.\n- Delete the subject-consent machinery now or leave
+  it dormant.\n\nEXISTING ISSUES THIS PIVOT AFFECTS\n\nDecided, closed by this pivot:
+  pm-resolution-mechanism,\npm-resolution-subject-visibility-leakage.\n\nLikely moot,
+  commented but left open for Ted to confirm:\npm-privacy-subject-consent-flow, pm-move-consent-withdrawal-entry-point,\npm-resolution-withdraw-fee,
+  pm-resolution-subject-bond,\npm-privacy-walrus-renewal-policy.\n\nScope changed,
+  commented: pm-privacy-policy-model,\npm-move-challenge-bond-escrow, pm-resolution-dispute-committee,\npm-custodial-wallet-interface,
+  pm-wallet-zklogin-migration."
+type: task
+component: architecture
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-09-26T19:49:43-00:00
+references: []
+log_events:
+- time: 2026-09-26T19:49:43-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
