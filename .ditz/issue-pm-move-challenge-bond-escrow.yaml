@@ -35,5 +35,15 @@ log_events:
   who: Ted Smith
   what: blocked by pm-profile-sybil-gating
   comment: ""
+- time: 2026-09-26T19:50:34-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Extended by the 2026-09-10 pivot (pm-pivot-2026-09-10): the bond is configurable
+    and escalating, sharply dearer per open challenge a user holds and radically dearer
+    once challenges have resolved against them. That requires identity continuity
+    the codebase does not have, so this is now blocked by pm-profile-sybil-gating.
+    Also open: where a slashed bond goes (winning pool recommended). Today challenging
+    costs only gas, so any losing participant can grief every market into DISPUTED
+    for free.'
 blocked_by:
 - pm-profile-sybil-gating
