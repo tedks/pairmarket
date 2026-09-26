@@ -1,0 +1,45 @@
+id: pm-profile-sybil-gating
+title: Gate Profile creation and derive challenge standing from accepted Friendship
+desc: 'The escalating challenge bond in pm-move-challenge-bond-escrow is
+
+  unenforceable without identity continuity, and there is none today:
+
+  create_profile is ungated, handles are unverified plaintext with no
+
+  uniqueness check, so the cheap counter to a rising bond is a fresh Profile.
+
+
+  Fix, which falls out of the existing social graph rather than needing new
+
+  machinery: standing to challenge or attest requires an accepted Friendship
+
+  with a subject. Friendship requires the counterparty to accept on-chain, so a
+
+  fresh Profile has no friends and therefore no standing. Keep the challenge and
+
+  loss history on the Profile object so it cannot be shed without also shedding
+
+  the friendships that grant the right to act.
+
+
+  Also needed: gate create_profile to one Profile per address, and decide
+
+  whether handles need uniqueness at all given they are display-only.
+
+
+  Note this does not make Sybil attacks impossible, only expensive in the one
+
+  currency that is costly here: other people accepting you as a friend.'
+type: feature
+component: contracts
+release:
+reporter: Ted Smith <tedks@riseup.net>
+status: unstarted
+disposition:
+creation_time: 2026-09-26T19:49:43-00:00
+references: []
+log_events:
+- time: 2026-09-26T19:49:43-00:00
+  who: Ted Smith
+  what: created
+  comment: ""
