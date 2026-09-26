@@ -16,3 +16,18 @@ log_events:
   who: Ted Smith
   what: created
   comment: ""
+- time: 2026-09-26T19:44:23-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Retirement shard off-duty/waiting/2026-09-26-da633dc2-pairmarket-devstack-purge-sui173.md
+    sharpens two sub-decisions after Ted''s 2026-09-10 friends-resolution pivot: (1)
+    is attestation itself bonded and slashable? The source session recommends yes
+    -- in a friend group the eligible attestor set and participant set are nearly
+    identical, so pari-mutuel payouts reward attesting your own position; needs bonded
+    attestation with slashing against the final outcome (a Schelling game on a socially-known
+    fact), as one bonded ladder rather than separate attestation and challenge primitives.
+    Also flagged: escalating bond needs identity continuity that does not currently
+    exist (create_profile is ungated, no uniqueness check, so a fresh Profile sheds
+    history) -- the fix is to require an accepted on-chain Friendship with a subject
+    for standing to challenge. (2) Where does a slashed bond go: winning pool, fee
+    recipient, or burn? Recommendation: the winning pool. Decides: Ted.'
