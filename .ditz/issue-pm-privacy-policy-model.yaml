@@ -45,6 +45,24 @@ log_events:
   who: Ted Smith
   what: blocked by pm-privacy-custodial-decrypt-logging
   comment: ""
+- time: 2026-09-26T19:44:34-00:00
+  who: Ted Smith
+  what: commented
+  comment: 'Retirement shard off-duty/waiting/2026-09-26-da633dc2-pairmarket-devstack-purge-sui173.md,
+    after Ted''s 2026-09-10 pivot (''Walrus may be dropped entirely; SEAL stays, enforcing
+    privacy to friends of the subjects; no server, only the blockchain''), raises
+    two open decisions: (1) accept or mitigate the permanence of on-chain ciphertext
+    -- no expiry, no delete, and a future key-server threshold compromise retroactively
+    opens every market ever created; for relationship gossip this deserves an explicit
+    decision rather than falling out of the architecture by default. Verified: SEAL
+    is storage-agnostic and explicitly supports on-chain ciphertext, so dropping Walrus
+    is clean and also deletes the blob-renewal problem, at the cost of permanence.
+    (2) Does the privacy copy change to name the SEAL key-server committee trust?
+    The README, UI copy and brief currently promise more than the architecture delivers
+    -- ''no server pairmarket operates'' is achievable, ''only the blockchain'' is
+    not, since SEAL key servers are third-party servers (candidates named: Enoki,
+    Ruby Nodes, NodeInfra, Studio Mirai, Overclock, H2O Nodes, Triton One) each holding
+    a share of an IBE master secret under a threshold. Decides: Ted.'
 blocked_by:
 - pm-privacy-key-server-set
 - pm-privacy-backfill-access
