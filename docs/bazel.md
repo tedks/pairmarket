@@ -6,6 +6,8 @@ service. `nix develop .#bazel` supplies Bazel 8.7.0 and buildifier without the
 Sui Phase 0 shell or its Corepack startup hook. Bazel pins its own Node.js 24
 toolchain and resolves TypeScript and JavaScript dependencies from the committed
 pnpm lockfile.
+The pinned `rules_nodejs` release includes the Linux Node 24.15.0 archive
+mapping used by this slice.
 
 From the repository root, run:
 

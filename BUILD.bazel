@@ -12,4 +12,5 @@ test_suite(
         "@pairmarket_src//packages/core:ids_runtime_test",
         "@pairmarket_src//packages/core:plaintext_runtime_test",
     ],
+    visibility = ["//visibility:public"],
 )
