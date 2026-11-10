@@ -1,0 +1,77 @@
+load("@aspect_rules_js//js:defs.bzl", "js_test")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@pairmarket_npm//:defs.bzl", "npm_link_all_packages")
+
+package(default_visibility = ["//visibility:public"])
+
+npm_link_all_packages(name = "node_modules")
+
+filegroup(
+    name = "sources",
+    srcs = [
+        "src/brand.ts",
+        "src/capabilities.ts",
+        "src/custody.ts",
+        "src/ids.ts",
+        "src/index.ts",
+        "src/network.ts",
+        "src/privacy.ts",
+        "src/tx.ts",
+        "src/validation.ts",
+    ],
+)
+
+ts_project(
+    name = "core_types",
+    testonly = True,
+    srcs = [
+        "src/brand.ts",
+        "src/capabilities.ts",
+        "src/custody.ts",
+        "src/ids.ts",
+        "src/index.ts",
+        "src/network.ts",
+        "src/privacy.ts",
+        "src/tx.ts",
+        "src/validation.ts",
+        "test/core-invariants.types.ts",
+        "test/ids.types.ts",
+    ],
+    no_emit = True,
+    tsconfig = "tsconfig.json",
+)
+
+filegroup(
+    name = "core_typecheck",
+    testonly = True,
+    srcs = [":core_types"],
+    output_group = "typecheck",
+)
+
+alias(
+    name = "core_typecheck_test",
+    testonly = True,
+    actual = ":core_types_typecheck_test",
+)
+
+js_test(
+    name = "ids_runtime_test",
+    data = [
+        "test/ids.runtime.mjs",
+        ":sources",
+        "//:node_modules",
+    ],
+    entry_point = "test/ids.runtime.mjs",
+    node_options = ["--import=tsx"],
+)
+
+js_test(
+    name = "plaintext_runtime_test",
+    data = [
+        "test/plaintext.runtime.mjs",
+        ":sources",
+        "//:node_modules",
+    ],
+    entry_point = "test/plaintext.runtime.mjs",
+    node_options = ["--import=tsx"],
+)

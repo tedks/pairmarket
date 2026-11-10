@@ -1,0 +1,20 @@
+load("@pairmarket_npm//:defs.bzl", "npm_link_all_packages")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+])
+
+npm_link_all_packages(name = "node_modules")
+
+test_suite(
+    name = "verify_core",
+    tests = [
+        "//packages/core:core_typecheck_test",
+        "//packages/core:ids_runtime_test",
+        "//packages/core:plaintext_runtime_test",
+    ],
+)

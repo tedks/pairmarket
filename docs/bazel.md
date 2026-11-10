@@ -12,24 +12,32 @@ From the repository root, run:
 
 This runs three checks: `//packages/core:core_typecheck_test` and the two
 runtime tests whose source files live under `packages/core/test`. The
-typecheck target includes the
-core source files plus the compile-time invariant fixtures. Its BUILD rule is a
-`ts_project(no_emit = True)`; rules_ts exposes the compiler action through the
-`typecheck` output group and generates `core_typecheck_test` to depend on that
-group. This is deliberate: building the default output of a transpiler-backed
-`ts_project` can skip typechecking, and a test that only builds that default
-output would not catch type errors.
+typecheck target includes the core source files plus the compile-time invariant
+fixtures. Its BUILD rule is a `ts_project(no_emit = True)`; an explicit
+`core_typecheck` filegroup selects the real `typecheck` output group, and the
+generated typecheck test depends on that group. This is deliberate: building
+the default output of a transpiler-backed `ts_project` can skip typechecking,
+and a test that only builds that default output would not catch type errors.
 
-The source lists in `packages/core/BUILD.bazel` are explicit. When a core
+`build_defs/pairmarket_source.bzl` creates a bounded Bazel source view with the
+root package metadata and the complete selected core source and test trees. It
+adds `onlyBuiltDependencies: []` only to the generated workspace view because
+rules_js 2.9.2 requires that legacy key to be present in the pnpm 9+ lockfile
+metadata. The committed `pnpm-workspace.yaml` remains unchanged; native pnpm
+continues to use its `allowBuilds` policy. The source lists in
+`build_defs/overlays/pairmarket-core.BUILD.bazel` are explicit. When a core
 source or type fixture is added, update the target's source list in the same
-change. The runtime tests load the actual TypeScript modules from runfiles via
-the pinned `tsx` loader; they check identifier normalization and that
-`Plaintext` values do not expose their wrapped value through ordinary object
-serialization.
+change. The runtime tests load the selected TypeScript modules via the pinned
+`tsx` loader; they check identifier normalization and that `Plaintext` values do
+not expose their wrapped value through ordinary object serialization.
 
-The `//packages/core` package defaults to private visibility. Only the root
-verification suite and core package can access cross-package targets. The
-test directory remains in the same Bazel package so
-the compile-time fixtures and runtime tests share the core source closure. This
-keeps the onboarding from claiming a stable public Bazel API for services or
-the web app before their dependency boundaries are migrated.
+The NPM translation checks `verify_node_modules_ignored` against `.bazelignore`.
+Every pnpm importer has an explicit ignored `node_modules` path, and
+`.gitignore` covers the root install directory and Bazel output symlinks. The
+Aspect telemetry module is patched to report no collectors; `.bazelrc` also
+sets its opt-out environment flags for any remaining clients.
+
+The `//packages/core` package defaults to private visibility. Its aliases expose
+only the selected typecheck and runtime test targets. This keeps the onboarding
+from claiming a stable public Bazel API for services or the web app before their
+dependency boundaries are migrated.

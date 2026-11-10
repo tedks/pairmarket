@@ -5,7 +5,19 @@ module(
 
 bazel_dep(name = "aspect_rules_js", version = "2.9.2")
 bazel_dep(name = "aspect_rules_ts", version = "3.5.2")
+bazel_dep(name = "aspect_tools_telemetry", version = "0.3.3")
 bazel_dep(name = "rules_nodejs", version = "6.4.0")
+
+# Disable Aspect collectors in the module itself, regardless of shell env.
+single_version_override(
+    module_name = "aspect_tools_telemetry",
+    patch_strip = 1,
+    patches = ["//build_defs:telemetry-disabled.patch"],
+    version = "0.3.3",
+)
+
+telemetry = use_extension("@aspect_tools_telemetry//:extension.bzl", "telemetry")
+use_repo(telemetry, "aspect_tools_telemetry_report")
 
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
 
@@ -19,11 +31,16 @@ typescript.deps(
 )
 use_repo(typescript, "npm_typescript")
 
+pairmarket_source = use_repo_rule("//build_defs:pairmarket_source.bzl", "pairmarket_source")
+
+pairmarket_source(name = "pairmarket_src")
+
 npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
 npm.npm_translate_lock(
     name = "pairmarket_npm",
     lifecycle_hooks = {"*": []},
-    pnpm_lock = "//:pnpm-lock.yaml",
+    pnpm_lock = "@pairmarket_src//:pnpm-lock.yaml",
     use_home_npmrc = False,
+    verify_node_modules_ignored = "//:.bazelignore",
 )
 use_repo(npm, "pairmarket_npm")

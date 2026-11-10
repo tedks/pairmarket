@@ -1,2 +1,5 @@
-bazel-*
 node_modules
+apps/web/node_modules
+packages/core/node_modules
+services/api/node_modules
+services/wallet/node_modules

@@ -1,3 +1,5 @@
 common --enable_bzlmod
+common --repo_env=DO_NOT_TRACK=1
+common --repo_env=ASPECT_TOOLS_TELEMETRY=-all
 build --announce_rc
 test --test_output=errors
