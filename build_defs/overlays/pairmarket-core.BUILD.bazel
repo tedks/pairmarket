@@ -34,6 +34,7 @@ ts_project(
         "test/core-invariants.types.ts",
         "test/ids.types.ts",
     ],
+    extends = ["//:tsconfig.base.json"],
     no_emit = True,
     tsconfig = "tsconfig.json",
 )
@@ -54,6 +55,7 @@ sh_test(
 
 js_test(
     name = "ids_runtime_test",
+    chdir = ".",
     data = [
         "test/ids.runtime.mjs",
         ":sources",
@@ -66,6 +68,7 @@ js_test(
 
 js_test(
     name = "plaintext_runtime_test",
+    chdir = ".",
     data = [
         "test/plaintext.runtime.mjs",
         ":sources",
