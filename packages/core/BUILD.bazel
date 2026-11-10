@@ -23,6 +23,7 @@ filegroup(
 
 ts_project(
     name = "core_typecheck",
+    testonly = True,
     srcs = [
         "src/brand.ts",
         "src/capabilities.ts",
@@ -37,7 +38,6 @@ ts_project(
         "test/ids.types.ts",
     ],
     no_emit = True,
-    testonly = True,
     tsconfig = "tsconfig.json",
     visibility = ["//:__pkg__"],
 )

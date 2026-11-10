@@ -4,6 +4,7 @@ package(default_visibility = ["//visibility:private"])
 
 js_test(
     name = "ids_runtime_test",
+    testonly = True,
     data = [
         "ids.runtime.mjs",
         "//:tsx_loader",
@@ -11,12 +12,12 @@ js_test(
     ],
     entry_point = "ids.runtime.mjs",
     node_options = ["--import=tsx"],
-    testonly = True,
     visibility = ["//:__pkg__"],
 )
 
 js_test(
     name = "plaintext_runtime_test",
+    testonly = True,
     data = [
         "plaintext.runtime.mjs",
         "//:tsx_loader",
@@ -24,6 +25,5 @@ js_test(
     ],
     entry_point = "plaintext.runtime.mjs",
     node_options = ["--import=tsx"],
-    testonly = True,
     visibility = ["//:__pkg__"],
 )
