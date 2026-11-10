@@ -15,7 +15,7 @@ ts_config(
     src = "tsconfig.json",
     deps = [
         "package.json",
-        "//:tsconfig.base.json",
+        "tsconfig.base.json",
     ],
 )
 

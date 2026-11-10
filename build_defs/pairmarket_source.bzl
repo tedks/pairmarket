@@ -120,6 +120,7 @@ def _pairmarket_source_impl(ctx):
     ctx.file("BUILD.bazel", ctx.read(ctx.attr.root_build))
     ctx.file("packages/core/BUILD.bazel", ctx.read(ctx.attr.core_build))
     ctx.file("packages/core/inventory.bzl", _inventory_bzl())
+    ctx.symlink(source.get_child("tsconfig.base.json"), "packages/core/tsconfig.base.json")
     ctx.symlink(ctx.path(ctx.attr.core_tsconfig), "packages/core/tsconfig.json")
     ctx.symlink(ctx.path(ctx.attr.typecheck_script), "packages/core/test/typecheck_test.sh")
 

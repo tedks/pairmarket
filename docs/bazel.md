@@ -27,6 +27,9 @@ data dependency. `.bazelrc` tells rules_ts to honor the tsconfig's explicit
 `skipLibCheck: false`, preserving the stricter source check. This is deliberate: building
 the default output of a transpiler-backed `ts_project` can skip typechecking,
 and a test that only builds that default output would not catch type errors.
+The bounded source view places a second symlink to the canonical root
+`tsconfig.base.json` beside the generated core tsconfig, because rules_ts
+`ts_config` copies only dependencies in its own Bazel package into the bin tree.
 
 `build_defs/pairmarket_source.bzl` creates a bounded Bazel source view with the
 root package metadata and the selected core source and test files. It
