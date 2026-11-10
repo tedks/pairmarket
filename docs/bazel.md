@@ -11,8 +11,11 @@ From the repository root, run:
 
     nix develop .#bazel --command bazel test //:verify_core
 
-This runs three checks: `//packages/core:core_typecheck_test` and the two
-runtime tests whose source files live under `packages/core/test`. The
+This runs three tests directly from the bounded `@pairmarket_src` repository:
+`@pairmarket_src//packages/core:core_typecheck_test` and the two runtime
+tests whose source files live under `packages/core/test`. Bazel test suites
+require test rules rather than aliases; the root package's local aliases
+remain available for individual callers. The
 typecheck target includes the core source files plus the compile-time invariant
 fixtures. Its BUILD rule is a `ts_project(no_emit = True)` using the repository's
 strict NodeNext `tsconfig.base.json`. An explicit `core_typecheck` filegroup

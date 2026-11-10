@@ -8,8 +8,8 @@ exports_files(
 test_suite(
     name = "verify_core",
     tests = [
-        "//packages/core:core_typecheck_test",
-        "//packages/core:ids_runtime_test",
-        "//packages/core:plaintext_runtime_test",
+        "@pairmarket_src//packages/core:core_typecheck_test",
+        "@pairmarket_src//packages/core:ids_runtime_test",
+        "@pairmarket_src//packages/core:plaintext_runtime_test",
     ],
 )
