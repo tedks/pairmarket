@@ -1,5 +1,6 @@
 common --enable_bzlmod
 common --repo_env=DO_NOT_TRACK=1
 common --repo_env=ASPECT_TOOLS_TELEMETRY=-all
+common --@aspect_rules_ts//ts:skipLibCheck=honor_tsconfig
 build --announce_rc
 test --test_output=errors

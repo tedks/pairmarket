@@ -23,7 +23,8 @@ typecheck target includes the core source files plus the compile-time invariant
 fixtures. Its BUILD rule is a `ts_project(no_emit = True)` using the repository's
 strict NodeNext `tsconfig.base.json`. An explicit `core_typecheck` filegroup
 selects the `typecheck` output group, and the shell test has that filegroup as a
-data dependency. This is deliberate: building
+data dependency. `.bazelrc` tells rules_ts to honor the tsconfig's explicit
+`skipLibCheck: false`, preserving the stricter source check. This is deliberate: building
 the default output of a transpiler-backed `ts_project` can skip typechecking,
 and a test that only builds that default output would not catch type errors.
 
