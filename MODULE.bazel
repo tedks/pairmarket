@@ -8,6 +8,7 @@ bazel_dep(name = "aspect_rules_ts", version = "3.5.2")
 bazel_dep(name = "rules_nodejs", version = "6.4.0")
 
 node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+
 # Match nodejs_24 from the locked nixpkgs flake used by the local toolchain.
 node.toolchain(node_version = "24.15.0")
 
