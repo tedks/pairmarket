@@ -1,10 +1,7 @@
 load("@aspect_rules_js//js:defs.bzl", "js_test")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
-load("@pairmarket_npm//:defs.bzl", "npm_link_all_packages")
 
-package(default_visibility = ["//visibility:public"])
-
-npm_link_all_packages(name = "node_modules")
+package(default_visibility = ["//visibility:private"])
 
 filegroup(
     name = "sources",
@@ -48,10 +45,11 @@ filegroup(
     output_group = "typecheck",
 )
 
-alias(
+sh_test(
     name = "core_typecheck_test",
-    testonly = True,
-    actual = ":core_types_typecheck_test",
+    srcs = ["test/typecheck_test.sh"],
+    data = [":core_typecheck"],
+    visibility = ["//visibility:public"],
 )
 
 js_test(
@@ -63,6 +61,7 @@ js_test(
     ],
     entry_point = "test/ids.runtime.mjs",
     node_options = ["--import=tsx"],
+    visibility = ["//visibility:public"],
 )
 
 js_test(
@@ -74,4 +73,5 @@ js_test(
     ],
     entry_point = "test/plaintext.runtime.mjs",
     node_options = ["--import=tsx"],
+    visibility = ["//visibility:public"],
 )
