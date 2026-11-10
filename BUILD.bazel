@@ -20,7 +20,7 @@ test_suite(
     name = "verify_core",
     tests = [
         "//packages/core:core_typecheck_test",
-        "//packages/core/test:ids_runtime_test",
-        "//packages/core/test:plaintext_runtime_test",
+        "//packages/core:ids_runtime_test",
+        "//packages/core:plaintext_runtime_test",
     ],
 )

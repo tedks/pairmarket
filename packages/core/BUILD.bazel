@@ -1,3 +1,4 @@
+load("@aspect_rules_js//js:defs.bzl", "js_test")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 
 package(default_visibility = ["//visibility:private"])
@@ -17,7 +18,6 @@ filegroup(
     ],
     visibility = [
         "//:__pkg__",
-        "//packages/core/test:__pkg__",
     ],
 )
 
@@ -39,5 +39,31 @@ ts_project(
     ],
     no_emit = True,
     tsconfig = "tsconfig.json",
+    visibility = ["//:__pkg__"],
+)
+
+js_test(
+    name = "ids_runtime_test",
+    testonly = True,
+    data = [
+        "test/ids.runtime.mjs",
+        ":sources",
+        "//:tsx_loader",
+    ],
+    entry_point = "test/ids.runtime.mjs",
+    node_options = ["--import=tsx"],
+    visibility = ["//:__pkg__"],
+)
+
+js_test(
+    name = "plaintext_runtime_test",
+    testonly = True,
+    data = [
+        "test/plaintext.runtime.mjs",
+        ":sources",
+        "//:tsx_loader",
+    ],
+    entry_point = "test/plaintext.runtime.mjs",
+    node_options = ["--import=tsx"],
     visibility = ["//:__pkg__"],
 )

@@ -11,7 +11,8 @@ From the repository root, run:
     nix develop --command bazel test //:verify_core
 
 This runs three checks: `//packages/core:core_typecheck_test` and the two
-runtime tests under `packages/core/test`. The typecheck target includes the
+runtime tests whose source files live under `packages/core/test`. The
+typecheck target includes the
 core source files plus the compile-time invariant fixtures. Its BUILD rule is a
 `ts_project(no_emit = True)`; rules_ts exposes the compiler action through the
 `typecheck` output group and generates `core_typecheck_test` to depend on that
@@ -26,8 +27,9 @@ the pinned `tsx` loader; they check identifier normalization and that
 `Plaintext` values do not expose their wrapped value through ordinary object
 serialization.
 
-The `//packages/core` and `//packages/core/test` packages default to private
-visibility. The tested source filegroup and typecheck target grant only the
-visibility needed by the core test package and root verification suite. This
+The `//packages/core` package defaults to private visibility. Its tested
+source filegroup and targets grant only the visibility needed by the root
+verification suite. The test directory remains in the same Bazel package so
+the compile-time fixtures and runtime tests share the core source closure. This
 keeps the onboarding from claiming a stable public Bazel API for services or
 the web app before their dependency boundaries are migrated.
