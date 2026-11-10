@@ -23,9 +23,10 @@ def _inventory_bzl():
     source_files = [path[len("packages/core/"):] for path in _CORE_SOURCE_FILES]
     test_files = [path[len("packages/core/"):] for path in _CORE_TEST_FILES]
     type_files = [path for path in test_files if path.endswith(".ts")]
+    runtime_files = [path for path in test_files if path.endswith(".mjs")]
     ids_runtime = [path for path in test_files if path.endswith("/ids.runtime.mjs")]
     plaintext_runtime = [path for path in test_files if path.endswith("/plaintext.runtime.mjs")]
-    if len(ids_runtime) != 1 or len(plaintext_runtime) != 1:
+    if len(runtime_files) != 2 or len(ids_runtime) != 1 or len(plaintext_runtime) != 1:
         fail("Pairmarket runtime test inventory is incomplete")
 
     def _list_assignment(name, values):
