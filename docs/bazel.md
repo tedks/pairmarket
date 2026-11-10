@@ -1,6 +1,6 @@
 # Bazel entry point
 
-The Bazel workspace provides a hermetic check of the shared TypeScript core.
+The Bazel workspace provides a bounded check of the shared TypeScript core.
 It does not start the web app, API, wallet service, Sui localnet, or any live
 service. `nix develop .#bazel` supplies Bazel 8.7.0 and buildifier without the
 Sui Phase 0 shell or its Corepack startup hook. Bazel pins its own Node.js 24
@@ -14,8 +14,9 @@ From the repository root, run:
 This runs three tests directly from the bounded `@pairmarket_src` repository:
 `@pairmarket_src//packages/core:core_typecheck_test` and the two runtime
 tests whose source files live under `packages/core/test`. Bazel test suites
-require test rules rather than aliases; the root package's local aliases
-remain available for individual callers. The
+require test rules rather than aliases. The root package's local aliases can
+be built, but `bazel test` does not execute them; use the external test labels
+for individual test execution. The
 typecheck target includes the core source files plus the compile-time invariant
 fixtures. Its BUILD rule is a `ts_project(no_emit = True)` using the repository's
 strict NodeNext `tsconfig.base.json`. An explicit `core_typecheck` filegroup
@@ -49,3 +50,7 @@ The `//packages/core` package defaults to private visibility. Its aliases expose
 only the selected typecheck and runtime test targets. This keeps the onboarding
 from claiming a stable public Bazel API for services or the web app before their
 dependency boundaries are migrated.
+
+On a host without Bazel's `linux-sandbox`, `processwrapper-sandbox` can check
+the selected sources but cannot enforce network isolation. A pass on that
+strategy is diagnostic local evidence, not an offline or remote qualification.
