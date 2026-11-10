@@ -1,42 +1,30 @@
 load("@aspect_rules_js//js:defs.bzl", "js_test")
-load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config", "ts_project")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(":inventory.bzl", "CORE_SOURCE_FILES", "CORE_TYPE_FILES", "IDS_RUNTIME_TEST", "PLAINTEXT_RUNTIME_TEST")
 
 package(default_visibility = ["//visibility:private"])
 
 filegroup(
     name = "sources",
-    srcs = [
-        "src/brand.ts",
-        "src/capabilities.ts",
-        "src/custody.ts",
-        "src/ids.ts",
-        "src/index.ts",
-        "src/network.ts",
-        "src/privacy.ts",
-        "src/tx.ts",
-        "src/validation.ts",
+    srcs = CORE_SOURCE_FILES,
+)
+
+ts_config(
+    name = "core_config",
+    src = "tsconfig.json",
+    deps = [
+        "package.json",
+        "//:tsconfig.base.json",
     ],
 )
 
 ts_project(
     name = "core_types",
     testonly = True,
-    srcs = [
-        "src/brand.ts",
-        "src/capabilities.ts",
-        "src/custody.ts",
-        "src/ids.ts",
-        "src/index.ts",
-        "src/network.ts",
-        "src/privacy.ts",
-        "src/tx.ts",
-        "src/validation.ts",
-        "test/core-invariants.types.ts",
-        "test/ids.types.ts",
-    ],
-    extends = "//:tsconfig.base.json",
+    srcs = CORE_SOURCE_FILES + CORE_TYPE_FILES,
     no_emit = True,
-    tsconfig = "tsconfig.json",
+    tsconfig = ":core_config",
 )
 
 filegroup(
@@ -57,11 +45,11 @@ js_test(
     name = "ids_runtime_test",
     chdir = ".",
     data = [
-        "test/ids.runtime.mjs",
+        IDS_RUNTIME_TEST,
         ":sources",
         "//:node_modules",
     ],
-    entry_point = "test/ids.runtime.mjs",
+    entry_point = IDS_RUNTIME_TEST,
     node_options = ["--import=tsx"],
     visibility = ["//visibility:public"],
 )
@@ -70,11 +58,11 @@ js_test(
     name = "plaintext_runtime_test",
     chdir = ".",
     data = [
-        "test/plaintext.runtime.mjs",
+        PLAINTEXT_RUNTIME_TEST,
         ":sources",
         "//:node_modules",
     ],
-    entry_point = "test/plaintext.runtime.mjs",
+    entry_point = PLAINTEXT_RUNTIME_TEST,
     node_options = ["--import=tsx"],
     visibility = ["//visibility:public"],
 )

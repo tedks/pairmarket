@@ -19,6 +19,30 @@ _CORE_TEST_FILES = [
     "packages/core/test/plaintext.runtime.mjs",
 ]
 
+def _inventory_bzl():
+    source_files = [path[len("packages/core/"):] for path in _CORE_SOURCE_FILES]
+    test_files = [path[len("packages/core/"):] for path in _CORE_TEST_FILES]
+    type_files = [path for path in test_files if path.endswith(".ts")]
+    ids_runtime = [path for path in test_files if path.endswith("/ids.runtime.mjs")]
+    plaintext_runtime = [path for path in test_files if path.endswith("/plaintext.runtime.mjs")]
+    if len(ids_runtime) != 1 or len(plaintext_runtime) != 1:
+        fail("Pairmarket runtime test inventory is incomplete")
+
+    def _list_assignment(name, values):
+        lines = ["%s = [" % name]
+        for value in values:
+            lines.append("    %r," % value)
+        lines.append("]")
+        return "\n".join(lines)
+
+    return "\n\n".join([
+        _list_assignment("CORE_SOURCE_FILES", source_files),
+        _list_assignment("CORE_TYPE_FILES", type_files),
+        "IDS_RUNTIME_TEST = %r" % ids_runtime[0],
+        "PLAINTEXT_RUNTIME_TEST = %r" % plaintext_runtime[0],
+        "",
+    ])
+
 _EDITOR_JUNK = [".DS_Store", "Thumbs.db", "desktop.ini"]
 
 def _collect_tree(ctx, directory, relative, extensions):
@@ -94,6 +118,7 @@ def _pairmarket_source_impl(ctx):
 
     ctx.file("BUILD.bazel", ctx.read(ctx.attr.root_build))
     ctx.file("packages/core/BUILD.bazel", ctx.read(ctx.attr.core_build))
+    ctx.file("packages/core/inventory.bzl", _inventory_bzl())
     ctx.symlink(ctx.path(ctx.attr.core_tsconfig), "packages/core/tsconfig.json")
     ctx.symlink(ctx.path(ctx.attr.typecheck_script), "packages/core/test/typecheck_test.sh")
 
