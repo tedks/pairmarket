@@ -1,0 +1,68 @@
+load("@aspect_rules_js//js:defs.bzl", "js_test")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config", "ts_project")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(":inventory.bzl", "CORE_SOURCE_FILES", "CORE_TYPE_FILES", "IDS_RUNTIME_TEST", "PLAINTEXT_RUNTIME_TEST")
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "sources",
+    srcs = CORE_SOURCE_FILES,
+)
+
+ts_config(
+    name = "core_config",
+    src = "tsconfig.json",
+    deps = [
+        "package.json",
+        "tsconfig.base.json",
+    ],
+)
+
+ts_project(
+    name = "core_types",
+    testonly = True,
+    srcs = CORE_SOURCE_FILES + CORE_TYPE_FILES,
+    no_emit = True,
+    tsconfig = ":core_config",
+)
+
+filegroup(
+    name = "core_typecheck",
+    testonly = True,
+    srcs = [":core_types"],
+    output_group = "typecheck",
+)
+
+sh_test(
+    name = "core_typecheck_test",
+    srcs = ["test/typecheck_test.sh"],
+    data = [":core_typecheck"],
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "ids_runtime_test",
+    chdir = ".",
+    data = [
+        IDS_RUNTIME_TEST,
+        ":sources",
+        "//:node_modules",
+    ],
+    entry_point = IDS_RUNTIME_TEST,
+    node_options = ["--import=tsx"],
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "plaintext_runtime_test",
+    chdir = ".",
+    data = [
+        PLAINTEXT_RUNTIME_TEST,
+        ":sources",
+        "//:node_modules",
+    ],
+    entry_point = PLAINTEXT_RUNTIME_TEST,
+    node_options = ["--import=tsx"],
+    visibility = ["//visibility:public"],
+)

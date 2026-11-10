@@ -1,0 +1,10 @@
+--- a/extension.bzl
++++ b/extension.bzl
+@@ -108,4 +108,6 @@
+     groups = {
+         "all": features,
+     }
+-    allowed_telemetry = parse_opt_out(allowed_val or "all", features, groups)
++    # pairmarket policy: never collect or send vendor telemetry, independently of
++    # caller environment or default flags. Keep the empty report interface.
++    allowed_telemetry = []

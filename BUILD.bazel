@@ -1,0 +1,16 @@
+package(default_visibility = ["//visibility:private"])
+
+exports_files(
+    [".bazelignore"],
+    visibility = ["//visibility:public"],
+)
+
+test_suite(
+    name = "verify_core",
+    tests = [
+        "@pairmarket_src//packages/core:core_typecheck_test",
+        "@pairmarket_src//packages/core:ids_runtime_test",
+        "@pairmarket_src//packages/core:plaintext_runtime_test",
+    ],
+    visibility = ["//visibility:public"],
+)

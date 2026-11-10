@@ -64,8 +64,14 @@
           };
         in
         {
+          bazel = pkgs.mkShell {
+            packages = [ pkgs.bazel_8 pkgs.buildifier ];
+          };
+
           default = pkgs.mkShell {
             packages = [
+              pkgs.bazel_8
+              pkgs.buildifier
               nodejs
               pnpm
               sui
@@ -74,7 +80,7 @@
             ];
 
             shellHook = ''
-              echo "pairmarket toolchain: node $(node --version), pnpm $(pnpm --version), $(sui --version)"
+              echo "pairmarket toolchain: bazel $(bazel --version), node $(node --version), pnpm $(pnpm --version), $(sui --version)"
             '';
           };
         }
