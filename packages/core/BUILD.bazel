@@ -1,0 +1,43 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "sources",
+    srcs = [
+        "src/brand.ts",
+        "src/capabilities.ts",
+        "src/custody.ts",
+        "src/ids.ts",
+        "src/index.ts",
+        "src/network.ts",
+        "src/privacy.ts",
+        "src/tx.ts",
+        "src/validation.ts",
+    ],
+    visibility = [
+        "//:__pkg__",
+        "//packages/core/test:__pkg__",
+    ],
+)
+
+ts_project(
+    name = "core_typecheck",
+    srcs = [
+        "src/brand.ts",
+        "src/capabilities.ts",
+        "src/custody.ts",
+        "src/ids.ts",
+        "src/index.ts",
+        "src/network.ts",
+        "src/privacy.ts",
+        "src/tx.ts",
+        "src/validation.ts",
+        "test/core-invariants.types.ts",
+        "test/ids.types.ts",
+    ],
+    no_emit = True,
+    testonly = True,
+    tsconfig = "tsconfig.json",
+    visibility = ["//:__pkg__"],
+)

@@ -7,5 +7,7 @@ with Twitter to play; a custodial wallet is created for you.
 
 ## Status
 
-Pre-spec. Read [.planning/BRIEF.md](.planning/BRIEF.md) for the vision,
-then [AGENTS.md](AGENTS.md) for the working rules.
+Read [.planning/BRIEF.md](.planning/BRIEF.md) for the vision and
+[AGENTS.md](AGENTS.md) for the working rules. The initial Bazel workspace
+checks the shared TypeScript core; see [docs/bazel.md](docs/bazel.md) for its
+scope and command.
