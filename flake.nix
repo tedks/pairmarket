@@ -64,6 +64,10 @@
           };
         in
         {
+          bazel = pkgs.mkShell {
+            packages = [ pkgs.bazel_8 pkgs.buildifier ];
+          };
+
           default = pkgs.mkShell {
             packages = [
               pkgs.bazel_8

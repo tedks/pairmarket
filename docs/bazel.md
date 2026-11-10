@@ -2,13 +2,14 @@
 
 The Bazel workspace provides a hermetic check of the shared TypeScript core.
 It does not start the web app, API, wallet service, Sui localnet, or any live
-service. `nix develop` supplies Bazel 8.7.0, Node.js 24, and the existing Phase 0
-tools; Bazel resolves TypeScript and JavaScript dependencies from the committed
+service. `nix develop .#bazel` supplies Bazel 8.7.0 and buildifier without the
+Sui Phase 0 shell or its Corepack startup hook. Bazel pins its own Node.js 24
+toolchain and resolves TypeScript and JavaScript dependencies from the committed
 pnpm lockfile.
 
 From the repository root, run:
 
-    nix develop --command bazel test //:verify_core
+    nix develop .#bazel --command bazel test //:verify_core
 
 This runs three checks: `//packages/core:core_typecheck_test` and the two
 runtime tests whose source files live under `packages/core/test`. The
