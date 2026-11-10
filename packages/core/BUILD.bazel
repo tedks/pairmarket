@@ -16,9 +16,6 @@ filegroup(
         "src/tx.ts",
         "src/validation.ts",
     ],
-    visibility = [
-        "//:__pkg__",
-    ],
 )
 
 ts_project(

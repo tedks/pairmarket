@@ -27,9 +27,9 @@ the pinned `tsx` loader; they check identifier normalization and that
 `Plaintext` values do not expose their wrapped value through ordinary object
 serialization.
 
-The `//packages/core` package defaults to private visibility. Its tested
-source filegroup and targets grant only the visibility needed by the root
-verification suite. The test directory remains in the same Bazel package so
+The `//packages/core` package defaults to private visibility. Only the root
+verification suite and core package can access cross-package targets. The
+test directory remains in the same Bazel package so
 the compile-time fixtures and runtime tests share the core source closure. This
 keeps the onboarding from claiming a stable public Bazel API for services or
 the web app before their dependency boundaries are migrated.

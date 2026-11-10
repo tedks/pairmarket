@@ -13,7 +13,7 @@ npm_link_all_packages(name = "node_modules")
 filegroup(
     name = "tsx_loader",
     srcs = [":node_modules/tsx"],
-    visibility = ["//packages/core/test:__pkg__"],
+    visibility = ["//packages/core:__pkg__"],
 )
 
 test_suite(
