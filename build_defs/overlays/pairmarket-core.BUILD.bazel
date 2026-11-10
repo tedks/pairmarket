@@ -34,7 +34,7 @@ ts_project(
         "test/core-invariants.types.ts",
         "test/ids.types.ts",
     ],
-    extends = ["//:tsconfig.base.json"],
+    extends = "//:tsconfig.base.json",
     no_emit = True,
     tsconfig = "tsconfig.json",
 )
