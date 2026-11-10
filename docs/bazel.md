@@ -27,8 +27,10 @@ rules_js 2.9.2 requires that legacy key to be present in the pnpm 9+ lockfile
 metadata. The committed `pnpm-workspace.yaml` remains unchanged; native pnpm
 continues to use its `allowBuilds` policy. The repository rule checks the
 discovered TypeScript and runtime-test inventory against the explicit lists in
-`build_defs/pairmarket_source.bzl`; the BUILD source list is maintained with
-those lists. Update both when a core source or test fixture is added. The
+`build_defs/pairmarket_source.bzl` and generates `inventory.bzl` for the
+overlay BUILD targets. Update those lists when a core source or test fixture
+is added. The strict NodeNext typecheck also declares the core `package.json`
+so TypeScript sees its `"type": "module"` setting. The
 runtime tests load the selected TypeScript modules via the pinned
 `tsx` loader; they check identifier normalization and that `Plaintext` values do
 not expose their wrapped value through ordinary object serialization.
