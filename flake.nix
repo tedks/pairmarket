@@ -66,11 +66,21 @@
         {
           default = pkgs.mkShell {
             packages = [
+              pkgs.bazel_8
               nodejs
               pnpm
               sui
               pkgs.curl
               pkgs.git
+            ];
+
+            # Bazel's Move rules (build_defs/move) run the official, unpatched
+            # Sui release through this pinned glibc loader and these libraries,
+            # so no FHS loader or nix-ld is needed.
+            MOVE_SUI_LOADER = pkgs.stdenv.cc.bintools.dynamicLinker;
+            MOVE_SUI_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              pkgs.stdenv.cc.libc
+              pkgs.stdenv.cc.cc.lib
             ];
 
             shellHook = ''

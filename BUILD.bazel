@@ -1,0 +1,8 @@
+package(default_visibility = ["//visibility:private"])
+
+# The Sui CLI pins are checked against the flake by
+# //contracts/pairmarket:sui_pin_test.
+exports_files(
+    ["flake.nix"],
+    visibility = ["//contracts/pairmarket:__pkg__"],
+)

@@ -1,0 +1,12 @@
+# Directories Bazel never treats as packages: every workspace package's
+# node_modules (some npm packages ship BUILD files), devstack state including
+# interrupted test scratch, direnv state and Nix result links (result,
+# result-<output>).
+ignore_directories([
+    "**/node_modules",
+    ".devstack",
+    ".devstack-test-*",
+    ".direnv",
+    "result",
+    "result-*",
+])

@@ -71,6 +71,26 @@ nix develop --command pnpm move:test
 The Move gates use Sui `--build-env mainnet`, matching the Phase 0 mainnet
 toolchain pin in `docs/design.md`.
 
+Bazel builds and tests the Move package offline with the same pinned Sui
+release (Linux x86_64; other hosts skip these targets). Bazel runs the
+official, unpatched Sui binary through the pinned glibc loader and libraries
+that the dev shell exports (`MOVE_SUI_LOADER`, `MOVE_SUI_LIBRARY_PATH`), so
+no FHS loader or nix-ld is needed inside `nix develop`;
+`build_defs/move/README.md` lists the host requirements:
+
+```bash
+nix develop --command bazel build //contracts/pairmarket:pairmarket
+nix develop --command bazel test //...
+```
+
+`:move_test` runs the package's Move unit tests, `:sui_pin_test` checks that
+`MODULE.bazel` and `flake.nix` pin the same Sui release, and
+`//build_defs/move:copy_test` checks the vendored rules against their
+manifest. When `Move.lock` changes its pinned framework commit, update the
+matching `move_git_dependency` in `MODULE.bazel`. `build_defs/move` is an
+exact copy of shared rules; see its README before editing. The Bazel targets
+complement the `pnpm verify` gates above; they do not replace them.
+
 ## Issue tracking (ditz, not beads)
 
 This repo uses [ditz](https://github.com/tedks/ditz) for distributed issue
