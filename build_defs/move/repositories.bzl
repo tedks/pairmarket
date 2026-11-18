@@ -162,19 +162,6 @@ _FETCH_PASSTHROUGH = [
     "no_proxy",
 ]
 
-# Unset every variable not named in MOVE_FETCH_KEEP (using the shell builtin,
-# so no value is ever passed as an argument), then exec the command.
-_CLEAN_EXEC = """
-for name in $(env | sed -n 's/^\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\\1/p'); do
-  case " $MOVE_FETCH_KEEP " in
-    *" $name "*) ;;
-    *) unset "$name" 2>/dev/null || true ;;
-  esac
-done
-unset MOVE_FETCH_KEEP
-exec "$@"
-"""
-
 def _move_git_dependency_impl(rctx):
     commit = rctx.attr.commit
     if len(commit) != 40 or [c for c in commit.elems() if c not in _HEX]:
@@ -207,13 +194,14 @@ def _move_git_dependency_impl(rctx):
     stage = "stage"
     root = stage + "/" + entry
 
-    # Run git in a clean environment. A small sh wrapper unsets every
-    # inherited variable except PATH, the proxy and CA-bundle settings in
+    # Run git in a clean environment. fetch_env.sh unsets every inherited
+    # variable except PATH, the proxy and CA-bundle settings in
     # _FETCH_PASSTHROUGH (GIT_SSL_CAINFO is the one GIT_* variable kept) and
-    # the fixed settings below, then execs git. Values never appear in argv,
-    # so proxy credentials stay out of the process list, and nothing is read
-    # through rctx.getenv, so changing these variables does not refetch.
-    # System and global configuration are ignored and hooks never run.
+    # the fixed settings below, refuses to run if any other variable is left,
+    # then execs git. Values never appear in argv, so proxy credentials stay
+    # out of the process list, and nothing is read through rctx.getenv, so
+    # changing these variables does not refetch. System and global
+    # configuration are ignored and hooks never run.
     keep = ["PATH", "HOME", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT", "MOVE_FETCH_KEEP"] + _FETCH_PASSTHROUGH
     env = {
         "GIT_CONFIG_GLOBAL": "/dev/null",
@@ -222,7 +210,8 @@ def _move_git_dependency_impl(rctx):
         "HOME": str(rctx.path("home")),
         "MOVE_FETCH_KEEP": " ".join(keep),
     }
-    git = [str(sh), "-c", _CLEAN_EXEC, "move-fetch", str(git), "-c", "core.hooksPath=/dev/null"]
+    fetch_env = rctx.path(Label(":fetch_env.sh"))
+    git = [str(sh), str(fetch_env), str(git), "-c", "core.hooksPath=/dev/null"]
 
     gitc = git + ["-C", root]
     # An empty template keeps hooks (and anything else) out of the new repo.
