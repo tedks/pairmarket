@@ -1,7 +1,8 @@
 # Directories Bazel never treats as packages: every workspace package's
 # node_modules (some npm packages ship BUILD files), devstack state including
-# interrupted test scratch, direnv state and Nix result links (result,
-# result-<output>).
+# interrupted test scratch, direnv state, Nix result links (result,
+# result-<output>) and the rules_sui_move submodule, which MODULE.bazel loads
+# as its own module (its packages and tests are not part of //...).
 ignore_directories([
     "**/node_modules",
     ".devstack",
@@ -9,4 +10,5 @@ ignore_directories([
     ".direnv",
     "result",
     "result-*",
+    "third_party/rules_sui_move",
 ])
