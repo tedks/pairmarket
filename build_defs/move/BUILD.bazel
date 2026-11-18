@@ -5,7 +5,6 @@ exports_files(
     [
         "MANIFEST.sha256",
         "defs.bzl",
-        "fetch_env.sh",
         "repositories.bzl",
         "runner.sh",
     ],
