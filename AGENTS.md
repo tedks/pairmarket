@@ -74,8 +74,10 @@ toolchain pin in `docs/design.md`.
 Bazel builds and tests the Move package offline with the same pinned Sui
 release (Linux x86_64; other hosts skip these targets). The rules come from
 the public [rules_move](https://github.com/tedks/rules_move) module,
-pinned by the `third_party/rules_move` submodule; initialize it once per
-checkout before running Bazel, or module resolution fails:
+pinned by the `third_party/rules_move` submodule. Bazel builds whatever is
+checked out there, and `git pull` does not move submodules, so update it
+after cloning and whenever the pin changes (without it, module resolution
+fails):
 
 ```bash
 git submodule update --init third_party/rules_move
