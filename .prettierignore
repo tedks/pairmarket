@@ -4,3 +4,4 @@ node_modules
 result
 contracts/pairmarket/build
 pnpm-lock.yaml
+third_party
