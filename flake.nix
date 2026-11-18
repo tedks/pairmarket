@@ -66,6 +66,7 @@
         {
           default = pkgs.mkShell {
             packages = [
+              pkgs.bazel_8
               nodejs
               pnpm
               sui

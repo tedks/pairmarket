@@ -1,0 +1,41 @@
+module(
+    name = "pairmarket",
+    version = "0.0.0",
+)
+
+# Platform constraints for the Sui CLI archive selected per host.
+bazel_dep(name = "platforms", version = "1.0.0")
+
+# Move: build and test contracts/pairmarket offline with the Sui CLI release
+# flake.nix pins (checked by //contracts/pairmarket:sui_pin_test). The Phase 0
+# toolchain supports Linux x86_64 only; other hosts skip the Move targets.
+sui_release = use_repo_rule("//build_defs/move:repositories.bzl", "sui_release")
+
+move_git_dependency = use_repo_rule("//build_defs/move:repositories.bzl", "move_git_dependency")
+
+move_host_git = use_repo_rule("//build_defs/move:repositories.bzl", "move_host_git")
+
+move_host_git(name = "move_host_git")
+
+sui_release(
+    name = "sui_cli",
+    archives = {
+        "linux-x86_64": [
+            "https://github.com/MystenLabs/sui/releases/download/mainnet-v1.73.2/sui-mainnet-v1.73.2-ubuntu-x86_64.tgz",
+            "sha256-EYlODmXWywbPH6JD3+IYvUQT6nZ3YAo7D3yniGOkqeA=",
+        ],
+    },
+    version = "1.73.2",
+)
+
+# The framework sources contracts/pairmarket/Move.lock pins (implicit Sui
+# CLI dependencies).
+move_git_dependency(
+    name = "move_sui_718ae563",
+    commit = "718ae563a42fb4ba0d055588f81c704dcef58c25",
+    paths = [
+        "crates/sui-framework/packages/move-stdlib",
+        "crates/sui-framework/packages/sui-framework",
+    ],
+    remote = "https://github.com/MystenLabs/sui.git",
+)
