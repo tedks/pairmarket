@@ -1,3 +1,3 @@
-[submodule "third_party/rules_sui_move"]
-	path = third_party/rules_sui_move
-	url = https://github.com/tedks/rules_sui_move.git
+[submodule "third_party/rules_move"]
+	path = third_party/rules_move
+	url = https://github.com/tedks/rules_move.git
