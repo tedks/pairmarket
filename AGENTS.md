@@ -74,8 +74,9 @@ toolchain pin in `docs/design.md`.
 Bazel builds and tests the Move package offline with the same pinned Sui
 release (Linux x86_64; other hosts skip these targets). Bazel runs the
 official, unpatched Sui binary, so even inside `nix develop` the host needs
-the standard glibc loader and libstdc++ (on NixOS, nix-ld) or the fetch fails;
-`build_defs/move/README.md` lists the host requirements:
+the standard glibc loader and libstdc++ (on NixOS, nix-ld) or the fetch fails,
+and bash and coreutils in `/bin:/usr/bin` for the actions (the strict
+action PATH); `build_defs/move/README.md` lists the host requirements:
 
 ```bash
 nix develop --command bazel build //contracts/pairmarket:pairmarket
