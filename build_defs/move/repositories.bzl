@@ -162,6 +162,19 @@ _FETCH_PASSTHROUGH = [
     "no_proxy",
 ]
 
+# Unset every variable not named in MOVE_FETCH_KEEP (using the shell builtin,
+# so no value is ever passed as an argument), then exec the command.
+_CLEAN_EXEC = """
+for name in $(env | sed -n 's/^\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\\1/p'); do
+  case " $MOVE_FETCH_KEEP " in
+    *" $name "*) ;;
+    *) unset "$name" 2>/dev/null || true ;;
+  esac
+done
+unset MOVE_FETCH_KEEP
+exec "$@"
+"""
+
 def _move_git_dependency_impl(rctx):
     commit = rctx.attr.commit
     if len(commit) != 40 or [c for c in commit.elems() if c not in _HEX]:
@@ -175,7 +188,7 @@ def _move_git_dependency_impl(rctx):
     host = _host_platform(rctx)
     git = rctx.which("git")
     tar = rctx.which("tar")
-    env_tool = rctx.which("env")
+    sh = rctx.which("sh")
     if host not in _PLATFORM_CONSTRAINTS:
         # Unsupported platform: skip the Move targets instead of failing
         # every build that loads this repository.
@@ -185,36 +198,31 @@ def _move_git_dependency_impl(rctx):
             outs = "unavailable/cache.tar",
         ))
         return
-    if not git or not tar or not env_tool:
+    if not git or not tar or not sh:
         # A supported host missing a tool is misconfigured: fail loudly rather
         # than let the Move tests be skipped.
-        fail("move_git_dependency needs git, tar and env on the host PATH")
+        fail("move_git_dependency needs git, tar and sh on the host PATH")
 
     entry = _sanitize(rctx.attr.remote) + "_" + commit
     stage = "stage"
     root = stage + "/" + entry
 
-    # Run git in a clean environment: only PATH, HOME and the proxy and CA
-    # bundle settings a fetch may need pass through, so no ambient GIT_*
-    # variable (directories, config, templates, exec path, ssh command) can
-    # reach it. System and global configuration are ignored and hooks never run.
-    # rctx.os.environ is read without registering the variables as fetch
-    # inputs: entering or leaving a dev shell must not refetch (and, offline,
-    # break) the pinned dependency. Values are passed as env(1) arguments, so
-    # a proxy URL with credentials is visible in the process list while the
-    # fetch runs.
-    ambient = rctx.os.environ
-    clean = ["-i", "PATH=" + ambient.get("PATH", ""), "HOME=" + str(rctx.path("home"))]
-    for name in _FETCH_PASSTHROUGH:
-        if name in ambient:
-            clean.append(name + "=" + ambient[name])
-    clean += [
-        "GIT_CONFIG_GLOBAL=/dev/null",
-        "GIT_CONFIG_NOSYSTEM=1",
-        "GIT_TERMINAL_PROMPT=0",
-    ]
-    git = [env_tool] + clean + [str(git), "-c", "core.hooksPath=/dev/null"]
-    env = {}
+    # Run git in a clean environment. A small sh wrapper unsets every
+    # inherited variable except PATH, the proxy and CA-bundle settings in
+    # _FETCH_PASSTHROUGH (GIT_SSL_CAINFO is the one GIT_* variable kept) and
+    # the fixed settings below, then execs git. Values never appear in argv,
+    # so proxy credentials stay out of the process list, and nothing is read
+    # through rctx.getenv, so changing these variables does not refetch.
+    # System and global configuration are ignored and hooks never run.
+    keep = ["PATH", "HOME", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT", "MOVE_FETCH_KEEP"] + _FETCH_PASSTHROUGH
+    env = {
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+        "HOME": str(rctx.path("home")),
+        "MOVE_FETCH_KEEP": " ".join(keep),
+    }
+    git = [str(sh), "-c", _CLEAN_EXEC, "move-fetch", str(git), "-c", "core.hooksPath=/dev/null"]
 
     gitc = git + ["-C", root]
     # An empty template keeps hooks (and anything else) out of the new repo.
