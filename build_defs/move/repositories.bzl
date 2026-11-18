@@ -57,25 +57,27 @@ def _host_platform(rctx):
         return "darwin-" + arch
     return os + "-" + arch
 
-def _incompatible_build(name, why, prefix = ""):
+def _incompatible_build(name, why, prefix = "", outs = None):
     # Analysis skips targets that depend on this one instead of failing, so a
     # host without a supported artifact never fetches or runs a wrong binary.
     return prefix + """# %s
 genrule(
     name = "%s",
-    outs = ["%s.unavailable"],
+    outs = ["%s"],
     cmd = "false",
     executable = True,
     target_compatible_with = ["@platforms//:incompatible"],
     visibility = ["//visibility:public"],
 )
-""" % (why, name, name)
+""" % (why, name, outs or (name + ".unavailable"))
 
 def _sui_release_impl(rctx):
     host = _host_platform(rctx)
-    for key in rctx.attr.archives:
+    for key, value in rctx.attr.archives.items():
         if key not in _PLATFORM_CONSTRAINTS:
             fail("unsupported archives key '%s'; known: %s" % (key, sorted(_PLATFORM_CONSTRAINTS)))
+        if len(value) != 2 or not value[1].startswith("sha256-"):
+            fail("archives['%s'] must be [url, sha256-SRI]" % key)
 
     # Every pinned value, one per line, for sui_pin_test on any host.
     pins = [rctx.attr.version] + [rctx.attr.archives[k][-1] for k in sorted(rctx.attr.archives)]
@@ -88,8 +90,6 @@ def _sui_release_impl(rctx):
             prefix = _PINS_EXPORT,
         ))
         return
-    if len(archive) != 2 or not archive[1].startswith("sha256-"):
-        fail("archives['%s'] must be [url, sha256-SRI]" % host)
     url, integrity = archive
 
     tar = rctx.which("tar")
@@ -108,7 +108,7 @@ def _sui_release_impl(rctx):
     rctx.delete("sui-release.tgz")
     if not extracted:
         fail("no sui executable in %s" % url)
-    rctx.execute(["mv", "sui", "sui-release"])
+    _run(rctx, ["mv", "sui", "sui-release"], "mv sui")
 
     reported = _run(rctx, ["./sui-release", "--version"], "sui --version").strip()
     expected = "sui " + rctx.attr.version + "-"
@@ -154,24 +154,50 @@ def _move_git_dependency_impl(rctx):
         if path.startswith("/") or ".." in path.split("/") or not path:
             fail("paths must be relative repository paths, got '%s'" % path)
 
+    host = _host_platform(rctx)
     git = rctx.which("git")
     tar = rctx.which("tar")
-    if not git or not tar:
-        fail("move_git_dependency needs git and tar on the host PATH")
+    env_tool = rctx.which("env")
+    if host not in _PLATFORM_CONSTRAINTS or not git or not tar or not env_tool:
+        # The Move targets need a Linux host with git and GNU tar; elsewhere
+        # skip them instead of failing every build that loads this repository.
+        rctx.file("BUILD.bazel", _incompatible_build(
+            "cache.tar",
+            "Move dependencies are fetched only on Linux hosts with git and tar (host %s)." % host,
+            outs = "unavailable/cache.tar",
+        ))
+        return
 
     entry = _sanitize(rctx.attr.remote) + "_" + commit
     stage = "stage"
     root = stage + "/" + entry
 
-    # Ignore host and user git configuration (URL rewrites, credentials).
+    # Ignore system and global git configuration (URL rewrites, credentials),
+    # and drop ambient variables that would redirect git to another repository.
     env = {
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_TERMINAL_PROMPT": "0",
     }
+    git = [env_tool] + [
+        "-u" + name
+        for name in [
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            "GIT_CEILING_DIRECTORIES",
+            "GIT_COMMON_DIR",
+            "GIT_CONFIG",
+            "GIT_CONFIG_COUNT",
+            "GIT_CONFIG_PARAMETERS",
+            "GIT_DIR",
+            "GIT_INDEX_FILE",
+            "GIT_NAMESPACE",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_WORK_TREE",
+        ]
+    ] + [str(git)]
 
-    gitc = [git, "-C", root]
-    _run(rctx, [git, "init", "--quiet", root], "git init", env = env)
+    gitc = git + ["-C", root]
+    _run(rctx, git + ["init", "--quiet", root], "git init", env = env)
     _run(rctx, gitc + ["remote", "add", "origin", rctx.attr.remote], "git remote add", env = env)
     _run(rctx, gitc + ["config", "remote.origin.promisor", "true"], "git config", env = env)
     _run(rctx, gitc + ["config", "remote.origin.partialclonefilter", "blob:none"], "git config", env = env)
@@ -185,6 +211,13 @@ def _move_git_dependency_impl(rctx):
     for path in rctx.attr.paths:
         if not rctx.path(root + "/" + path + "/Move.toml").exists:
             fail("%s@%s has no Move.toml under %s" % (rctx.attr.remote, commit, path))
+
+    # Drop fetch-time records that differ on every fetch and that the CLI never
+    # reads. The remaining .git (index stat data, pack layout) can still differ
+    # between fetches, so the archive digest is not reproducible across
+    # refetches or hosts; only its content is pinned, by the commit.
+    for volatile in ["FETCH_HEAD", "logs", "ORIG_HEAD"]:
+        rctx.delete(root + "/.git/" + volatile)
 
     _run(
         rctx,

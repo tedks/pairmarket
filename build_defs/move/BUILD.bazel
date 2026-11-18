@@ -3,6 +3,7 @@ load(":defs.bzl", "move_rules_copy_test")
 
 exports_files(
     [
+        "MANIFEST.sha256",
         "defs.bzl",
         "repositories.bzl",
         "runner.sh",
@@ -10,16 +11,22 @@ exports_files(
     visibility = ["//visibility:public"],
 )
 
+filegroup(
+    name = "files",
+    srcs = glob(["*"]),
+    visibility = ["//visibility:public"],
+)
+
 move_rules_copy_test(
     name = "copy_test",
     size = "small",
-    files = [
-        "BUILD.bazel",
-        "README.md",
-        "defs.bzl",
-        "repositories.bzl",
-        "runner.sh",
-    ],
+    # Every file in this directory, so an added file fails until it is listed.
+    files = glob(
+        ["*"],
+        exclude = ["MANIFEST.sha256"],
+    ),
     manifest = "MANIFEST.sha256",
     tags = ["block-network"],
+    # The check uses GNU coreutils' sha256sum --check --strict.
+    target_compatible_with = ["@platforms//os:linux"],
 )

@@ -21,6 +21,32 @@ Move.lock fails instead of fetching.
 against its MANIFEST.sha256.
 """
 
+def _tool_attrs(cfg):
+    # move_package runs the tools in a build action (exec configuration);
+    # move_test runs them at test time on the target platform.
+    return {
+        "git": attr.label(
+            allow_single_file = True,
+            executable = True,
+            cfg = cfg,
+            mandatory = True,
+            doc = "The git the Sui CLI drives, normally `@<move_host_git repo>//:git`.",
+        ),
+        "sui": attr.label(
+            allow_single_file = True,
+            executable = True,
+            cfg = cfg,
+            mandatory = True,
+            doc = "The sui CLI, normally `@<sui_release repo>//:sui`.",
+        ),
+        "_runner": attr.label(
+            default = Label(":runner.sh"),
+            allow_single_file = True,
+            executable = True,
+            cfg = cfg,
+        ),
+    }
+
 _COMMON_ATTRS = {
     "build_env": attr.string(
         default = "mainnet",
@@ -30,13 +56,6 @@ _COMMON_ATTRS = {
         allow_files = [".tar"],
         doc = "move_git_dependency archives (`@repo//:cache.tar`) for every git dependency in Move.lock.",
     ),
-    "git": attr.label(
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
-        mandatory = True,
-        doc = "The git the Sui CLI drives, normally `@<move_host_git repo>//:git`.",
-    ),
     "package": attr.string(
         doc = "Workspace-relative directory holding Move.toml. Defaults to this BUILD file's package.",
     ),
@@ -44,19 +63,6 @@ _COMMON_ATTRS = {
         allow_files = True,
         mandatory = True,
         doc = "Move.toml, Move.lock, sources, tests and any `local` dependency packages.",
-    ),
-    "sui": attr.label(
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
-        mandatory = True,
-        doc = "The sui CLI, normally `@<sui_release repo>//:sui`.",
-    ),
-    "_runner": attr.label(
-        default = Label(":runner.sh"),
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
     ),
 }
 
@@ -67,20 +73,20 @@ def _package_dir(ctx):
     return package
 
 def _staging_lines(ctx, package, runfiles_relative):
-    manifest_path = package + "/Move.toml"
+    required = {package + "/Move.lock": False, package + "/Move.toml": False}
     lines = []
-    has_manifest = False
     for f in ctx.files.srcs:
         if f.owner.workspace_name:
             fail("srcs must come from this repository, got %s" % f.owner)
         if "\t" in f.short_path or "\n" in f.short_path:
             fail("unsupported character in path %s" % f.short_path)
-        if f.short_path == manifest_path:
-            has_manifest = True
+        if f.short_path in required:
+            required[f.short_path] = True
         source = f.short_path if runfiles_relative else f.path
         lines.append(source + "\t" + f.short_path)
-    if not has_manifest:
-        fail("srcs must include %s" % manifest_path)
+    for path, present in required.items():
+        if not present:
+            fail("srcs must include %s: the committed lock is the dependency pin" % path)
     return "\n".join(lines) + "\n"
 
 def _move_package_impl(ctx):
@@ -114,7 +120,7 @@ def _move_package_impl(ctx):
 
 move_package = rule(
     implementation = _move_package_impl,
-    attrs = _COMMON_ATTRS,
+    attrs = dict(_COMMON_ATTRS, **_tool_attrs("exec")),
     doc = "Compiles one Sui Move package with `sui move build`.",
 )
 
@@ -152,7 +158,7 @@ def _move_test_impl(ctx):
 
 move_test = rule(
     implementation = _move_test_impl,
-    attrs = _COMMON_ATTRS,
+    attrs = dict(_COMMON_ATTRS, **_tool_attrs("target")),
     test = True,
     doc = "Runs one Sui Move package's unit tests with `sui move test`.",
 )
@@ -163,7 +169,9 @@ def _sui_pin_test_impl(ctx):
         script,
         """#!/usr/bin/env bash
 # Fails unless every pinned value (CLI version and archive hashes) appears
-# verbatim in the files that also pin the Sui CLI, e.g. a Nix flake.
+# verbatim, not followed by a digit (so 1.80.1 never matches 1.80.10), in at
+# least one of the files that also pin the Sui CLI, e.g. a Nix flake. This is
+# a presence check (see README.md).
 set -euo pipefail
 pins=%s
 files=(%s)
@@ -171,7 +179,8 @@ files=(%s)
 missing=0
 while IFS= read -r pin; do
   [[ -n "$pin" ]] || continue
-  if ! grep -qF -- "$pin" "${files[@]}"; then
+  pattern="$(printf '%%s' "$pin" | sed 's#[][\\.*^$+?(){}|]#\\\\&#g')([^0-9]|\\$)"
+  if ! grep -qE -- "$pattern" "${files[@]}"; then
     echo "pin '$pin' not found in: ${files[*]}" >&2
     missing=1
   fi

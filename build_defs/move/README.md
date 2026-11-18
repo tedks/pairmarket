@@ -10,7 +10,7 @@ Change the canonical copy, regenerate the manifest, then copy the whole
 directory (including the manifest) into each consumer.
 
 ```bash
-sha256sum BUILD.bazel README.md defs.bzl repositories.bzl runner.sh > MANIFEST.sha256
+ls | grep -vx MANIFEST.sha256 | LC_ALL=C sort | xargs sha256sum > MANIFEST.sha256
 ```
 
 ## Use
@@ -69,15 +69,36 @@ dependency packages; they are staged at their workspace paths.
 ## Behavior and limits
 
 - Actions copy `srcs` into a private directory, set a fresh `MOVE_HOME` from
-  the `deps` archives and a keyless client configuration, and refuse every
-  git transport. A missing dependency fails; nothing is fetched.
-- A `Move.lock` that is stale for the pinned CLI fails, even when the CLI
-  could re-resolve it from cached sources: the committed lock is the pin.
+  the `deps` archives and a keyless client configuration, point the CLI's RPC
+  endpoints at a closed loopback port, and refuse every git transport. A
+  missing dependency fails; nothing is fetched by git.
+- Those measures stop git and chain RPC from reaching the network. Blocking
+  every other connection relies on Bazel's sandbox: the targets request
+  `block-network`, which the Linux sandbox enforces. With
+  `--spawn_strategy=local` (or another unsandboxed strategy) that tag does
+  nothing, and "offline" means only the guarantees above.
+- `srcs` must include `Move.lock`, and a lock that is stale for the pinned CLI
+  fails, even when the CLI could re-resolve it from cached sources: the
+  committed lock is the pin. In test mode staleness is detected from the CLI's
+  "Updating dependencies" notice, which the parent tests pin for the CLI they
+  run; consumers on another CLI version should confirm it once.
 - `move_test` fails when the CLI fails or reports zero tests.
 - The build output contains bytecode only; the CLI's `BuildInfo.yaml`, debug
   info and source maps embed an absolute scratch path and are omitted.
+- `sui_pin_test` is a presence check: each pinned value must appear somewhere
+  in the listed files. A stale copy of a value left elsewhere in those files
+  would still satisfy it.
+- `cache.tar` holds a git checkout. Its content is fixed by the commit, but
+  its bytes (git index stat data, pack layout) can differ between fetches, so
+  action cache entries are not shared across hosts or refetches.
+- Actions use Bazel's default shell environment for `PATH` (bash, coreutils,
+  tar). Set `--incompatible_strict_action_env` to keep host `PATH` changes out
+  of action keys.
 - Host requirements: Linux, bash, coreutils, tar, and git (for fetching
   dependencies and because the CLI drives git for its cache).
 - `sui_release` fetches the archive for the host platform only. A host with no
-  listed archive downloads nothing, and the targets that need it are skipped
-  as incompatible. Remote execution on another platform is not supported.
+  listed archive downloads no Sui binary, and the targets that need it are
+  skipped as incompatible. The small git dependency fetches still run when
+  those targets are loaded. `move_test` takes its tools in the target
+  configuration, so it is also skipped when `--platforms` names an
+  unsupported target. Remote execution on another platform is not supported.

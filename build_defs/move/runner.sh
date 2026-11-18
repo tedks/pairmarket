@@ -45,7 +45,10 @@ command -v tar >/dev/null || die "tar is required on PATH"
 abspath() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s/%s' "$PWD" "$1" ;; esac; }
 sui=$(abspath "$sui")
 git=$(abspath "$git")
-[[ "$mode" == test || "$out" == "-" ]] || out=$(abspath "$out")
+if [[ "$mode" == build ]]; then
+  [[ "$out" != "-" && -n "$out" ]] || die "build mode needs an output directory"
+  out=$(abspath "$out")
+fi
 
 scratch_parent=${TEST_TMPDIR:-${TMPDIR:-/tmp}}
 work=$(mktemp -d "$scratch_parent/move-runner.XXXXXX")
@@ -72,6 +75,8 @@ while IFS=$'\t' read -r from to || [[ -n "${from:-}" ]]; do
   staged=$((staged + 1))
 done <"$manifest"
 [[ -f "$src_root/$package/Move.toml" ]] || die "no Move.toml staged at $package/"
+# The committed lock is the dependency pin; without it the CLI would resolve.
+[[ -f "$src_root/$package/Move.lock" ]] || die "no Move.lock staged at $package/"
 
 for dep in "$@"; do
   [[ -f "$dep" ]] || die "dependency archive missing: $dep"
@@ -103,7 +108,7 @@ EOF
 
 lock=$src_root/$package/Move.lock
 lock_before=$work/Move.lock.before
-if [[ -f "$lock" ]]; then cp -- "$lock" "$lock_before"; fi
+cp -- "$lock" "$lock_before"
 
 run_sui() {
   # The environment is rebuilt from scratch: only PATH survives, git ignores
@@ -125,7 +130,7 @@ run_sui() {
 check_lock() {
   # $1: a lock file the CLI produced. A difference means Move.lock is stale
   # for this toolchain; the committed lock is the pin, so refuse to proceed.
-  if [[ -f "$lock_before" && -f "$1" ]] && ! cmp -s "$lock_before" "$1"; then
+  if [[ -f "$1" ]] && ! cmp -s "$lock_before" "$1"; then
     diff -u "$lock_before" "$1" >&2 || true
     die "Move.lock for $package is stale under this Sui CLI; regenerate and commit it"
   fi
@@ -147,6 +152,7 @@ cat -- "$log"
 if grep -q '^\[NOTE\] Updating dependencies' "$log"; then
   die "Move.lock for $package is stale under this Sui CLI (it re-resolved dependencies); regenerate and commit it"
 fi
+[[ -f "$lock" ]] || die "sui removed $package/Move.lock"
 check_lock "$lock"
 check_lock "$work/install/Move.lock"
 
