@@ -3,11 +3,12 @@
 Small Bazel rules that compile a Sui Move package and run its Move unit tests
 without network access, with the same Sui CLI release a project already pins.
 
-This directory is kept as an exact copy wherever it is used. `MANIFEST.sha256`
+This directory is kept as an exact copy wherever it is used: the files are
+maintained in one canonical place and copied verbatim. `MANIFEST.sha256`
 lists the SHA-256 of every other file here, and the `:copy_test` target checks
 the files against it, so a local edit to a copy fails that repository's tests.
-Change the canonical copy, regenerate the manifest, then copy the whole
-directory (including the manifest) into each consumer.
+To change the rules, change the canonical copy, regenerate the manifest, then
+copy the whole directory (including the manifest) into each consumer.
 
 ```bash
 ls | grep -vx MANIFEST.sha256 | LC_ALL=C sort | xargs sha256sum > MANIFEST.sha256
@@ -80,8 +81,8 @@ dependency packages; they are staged at their workspace paths.
 - `srcs` must include `Move.lock`, and a lock that is stale for the pinned CLI
   fails, even when the CLI could re-resolve it from cached sources: the
   committed lock is the pin. In test mode staleness is detected from the CLI's
-  "Updating dependencies" notice, which the parent tests pin for the CLI they
-  run; consumers on another CLI version should confirm it once.
+  "Updating dependencies" notice, which the rules' own tests pin for the CLI
+  they run; consumers on another CLI version should confirm it once.
 - `move_test` fails when the CLI fails or reports zero tests.
 - The build output contains bytecode only; the CLI's `BuildInfo.yaml`, debug
   info and source maps embed an absolute scratch path and are omitted.
@@ -94,8 +95,12 @@ dependency packages; they are staged at their workspace paths.
 - Actions use Bazel's default shell environment for `PATH` (bash, coreutils,
   tar). Set `--incompatible_strict_action_env` to keep host `PATH` changes out
   of action keys.
-- Host requirements: Linux, bash, coreutils, tar, and git (for fetching
-  dependencies and because the CLI drives git for its cache).
+- Host requirements: Linux with the standard glibc dynamic loader and
+  libstdc++ (the official Sui release binary is not patched; on NixOS enable
+  nix-ld, otherwise fetching the release fails with that explanation); git
+  and tar on the PATH Bazel sees; and bash, coreutils and tar on the action
+  PATH, which is `/bin:/usr/bin:/usr/local/bin` under
+  `--incompatible_strict_action_env`.
 - `sui_release` fetches the archive for the host platform only. A host with no
   listed archive downloads no Sui binary, and the targets that need it are
   skipped as incompatible. On a platform the rules do not support (anything
@@ -114,5 +119,6 @@ dependency packages; they are staged at their workspace paths.
   git dependency; `move_host_git` deliberately re-runs when PATH changes, to
   pick up a different git.
 - `:copy_test` cannot see a nested directory that has its own BUILD file
-  (Bazel globs stop at packages); keep the copy flat. The parent-side copy
-  check, which reads git trees, reports such an addition.
+  (Bazel globs stop at packages); keep the copy flat. The copy check run
+  where the canonical copy lives, which reads git trees, reports such an
+  addition.

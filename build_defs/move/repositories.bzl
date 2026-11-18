@@ -110,7 +110,13 @@ def _sui_release_impl(rctx):
         fail("no sui executable in %s" % url)
     _run(rctx, ["mv", "sui", "sui-release"], "mv sui")
 
-    reported = _run(rctx, ["./sui-release", "--version"], "sui --version").strip()
+    probe = rctx.execute(["./sui-release", "--version"], quiet = True)
+    if probe.return_code != 0:
+        fail(("the official Sui %s release for %s did not run (%d): %s%s\n" +
+              "It is an unpatched glibc binary: the host needs the standard " +
+              "dynamic loader and libstdc++ (on NixOS, enable nix-ld).") %
+             (rctx.attr.version, host, probe.return_code, probe.stdout, probe.stderr))
+    reported = probe.stdout.strip()
     expected = "sui " + rctx.attr.version + "-"
     if not reported.startswith(expected):
         fail("release reports '%s', expected '%s...'" % (reported, expected))

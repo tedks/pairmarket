@@ -23,7 +23,8 @@ move_rules_copy_test(
     # Every file under this directory, nested ones included, so an added file
     # fails until it is listed. The copy is flat. Bazel globs stop at nested
     # packages, so a new subdirectory with its own BUILD file escapes this
-    # test; the parent's check_move_rule_copies still reports it.
+    # test; the copy check run where the canonical copy lives (it reads git
+    # trees) still reports it.
     files = glob(
         ["**"],
         exclude = ["MANIFEST.sha256"],
