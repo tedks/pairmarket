@@ -147,12 +147,16 @@ different platform is not supported.""",
 # Environment a dependency fetch may legitimately need; everything else is
 # dropped (see _move_git_dependency_impl).
 _FETCH_PASSTHROUGH = [
+    "ALL_PROXY",
+    "CURL_CA_BUNDLE",
+    "GIT_SSL_CAINFO",
     "HTTPS_PROXY",
     "HTTP_PROXY",
     "NIX_SSL_CERT_FILE",
     "NO_PROXY",
     "SSL_CERT_DIR",
     "SSL_CERT_FILE",
+    "all_proxy",
     "https_proxy",
     "http_proxy",
     "no_proxy",
@@ -194,11 +198,16 @@ def _move_git_dependency_impl(rctx):
     # bundle settings a fetch may need pass through, so no ambient GIT_*
     # variable (directories, config, templates, exec path, ssh command) can
     # reach it. System and global configuration are ignored and hooks never run.
-    clean = ["-i", "PATH=" + (rctx.getenv("PATH") or ""), "HOME=" + str(rctx.path("home"))]
+    # rctx.os.environ is read without registering the variables as fetch
+    # inputs: entering or leaving a dev shell must not refetch (and, offline,
+    # break) the pinned dependency. Values are passed as env(1) arguments, so
+    # a proxy URL with credentials is visible in the process list while the
+    # fetch runs.
+    ambient = rctx.os.environ
+    clean = ["-i", "PATH=" + ambient.get("PATH", ""), "HOME=" + str(rctx.path("home"))]
     for name in _FETCH_PASSTHROUGH:
-        value = rctx.getenv(name)
-        if value != None:
-            clean.append(name + "=" + value)
+        if name in ambient:
+            clean.append(name + "=" + ambient[name])
     clean += [
         "GIT_CONFIG_GLOBAL=/dev/null",
         "GIT_CONFIG_NOSYSTEM=1",

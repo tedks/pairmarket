@@ -107,9 +107,10 @@ dependency packages; they are staged at their workspace paths.
   tests. `move_test` takes its tools in the target configuration, so it is
   also skipped when `--platforms` names an unsupported target. Remote
   execution on another platform is not supported.
-- Dependency fetches run git in a clean environment (PATH, HOME, proxy and
-  CA-bundle variables only), without system or global configuration, with
-  an empty template and no hooks.
+- Dependency fetches run git in a clean environment (PATH, HOME, and the
+  proxy and CA-bundle variables listed in `repositories.bzl`), without system
+  or global configuration, with an empty template and no hooks. Changing
+  those variables does not refetch a dependency.
 - `:copy_test` cannot see a nested directory that has its own BUILD file
   (Bazel globs stop at packages); keep the copy flat. The parent-side copy
   check, which reads git trees, reports such an addition.
