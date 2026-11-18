@@ -13,16 +13,17 @@ exports_files(
 
 filegroup(
     name = "files",
-    srcs = glob(["*"]),
+    srcs = glob(["**"]),
     visibility = ["//visibility:public"],
 )
 
 move_rules_copy_test(
     name = "copy_test",
     size = "small",
-    # Every file in this directory, so an added file fails until it is listed.
+    # Every file under this directory, nested ones included, so any added file
+    # fails until it is listed (the copy is flat).
     files = glob(
-        ["*"],
+        ["**"],
         exclude = ["MANIFEST.sha256"],
     ),
     manifest = "MANIFEST.sha256",

@@ -169,9 +169,10 @@ def _sui_pin_test_impl(ctx):
         script,
         """#!/usr/bin/env bash
 # Fails unless every pinned value (CLI version and archive hashes) appears
-# verbatim, not followed by a digit (so 1.80.1 never matches 1.80.10), in at
-# least one of the files that also pin the Sui CLI, e.g. a Nix flake. This is
-# a presence check (see README.md).
+# verbatim, with no digit or dot directly before it and no digit after it (so
+# 1.80.1 never matches 1.80.10 or 21.80.1), in at least one of the files that
+# also pin the Sui CLI, e.g. a Nix flake. This is a presence check (see
+# README.md).
 set -euo pipefail
 pins=%s
 files=(%s)
@@ -179,7 +180,7 @@ files=(%s)
 missing=0
 while IFS= read -r pin; do
   [[ -n "$pin" ]] || continue
-  pattern="$(printf '%%s' "$pin" | sed 's#[][\\.*^$+?(){}|]#\\\\&#g')([^0-9]|\\$)"
+  pattern="(^|[^0-9.])$(printf '%%s' "$pin" | sed 's#[][\\.*^$+?(){}|]#\\\\&#g')([^0-9]|\\$)"
   if ! grep -qE -- "$pattern" "${files[@]}"; then
     echo "pin '$pin' not found in: ${files[*]}" >&2
     missing=1
@@ -207,10 +208,11 @@ sui_pin_test = rule(
 
 def _move_rules_copy_test_impl(ctx):
     manifest = ctx.file.manifest
-    names = sorted([f.basename for f in ctx.files.files])
+    prefix = manifest.short_path[:-len(manifest.basename)]
     for f in ctx.files.files:
-        if f.dirname != manifest.dirname:
-            fail("%s is not beside %s" % (f.short_path, manifest.short_path))
+        if not f.short_path.startswith(prefix):
+            fail("%s is not under %s" % (f.short_path, prefix))
+    names = sorted([f.short_path[len(prefix):] for f in ctx.files.files])
     script = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
         script,
@@ -220,13 +222,16 @@ def _move_rules_copy_test_impl(ctx):
 set -euo pipefail
 cd %s
 expected=$(printf '%%s\\n' %s)
-listed=$(awk '{print $2}' MANIFEST.sha256 | sort)
+listed=$(awk '{print $2}' MANIFEST.sha256 | LC_ALL=C sort)
 if [[ "$expected" != "$listed" ]]; then
   echo "MANIFEST.sha256 lists different files than the directory holds" >&2
   diff <(echo "$listed") <(echo "$expected") >&2 || true
   exit 1
 fi
 sha256sum --check --strict MANIFEST.sha256
+# The runner is executed directly; a copy that lost its mode would only fail
+# at build time.
+[[ -x runner.sh ]] || { echo "runner.sh is not executable" >&2; exit 1; }
 """ % (_shell_quote(manifest.dirname[len(manifest.root.path):].lstrip("/") or "."), " ".join([_shell_quote(n) for n in names])),
         is_executable = True,
     )

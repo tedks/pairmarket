@@ -98,7 +98,11 @@ dependency packages; they are staged at their workspace paths.
   dependencies and because the CLI drives git for its cache).
 - `sui_release` fetches the archive for the host platform only. A host with no
   listed archive downloads no Sui binary, and the targets that need it are
-  skipped as incompatible. The small git dependency fetches still run when
-  those targets are loaded. `move_test` takes its tools in the target
+  skipped as incompatible. On a platform the rules do not support (anything
+  but Linux x86_64 or aarch64) the dependency and git repositories are
+  incompatible stubs too and nothing is fetched; on a supported platform
+  whose release has no listed archive, the small git dependency fetches still
+  run when those targets are loaded. A supported host missing git or tar
+  fails instead of skipping, so a misconfigured machine cannot hide the tests. `move_test` takes its tools in the target
   configuration, so it is also skipped when `--platforms` names an
   unsupported target. Remote execution on another platform is not supported.

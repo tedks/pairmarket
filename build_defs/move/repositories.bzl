@@ -158,22 +158,27 @@ def _move_git_dependency_impl(rctx):
     git = rctx.which("git")
     tar = rctx.which("tar")
     env_tool = rctx.which("env")
-    if host not in _PLATFORM_CONSTRAINTS or not git or not tar or not env_tool:
-        # The Move targets need a Linux host with git and GNU tar; elsewhere
-        # skip them instead of failing every build that loads this repository.
+    if host not in _PLATFORM_CONSTRAINTS:
+        # Unsupported platform: skip the Move targets instead of failing
+        # every build that loads this repository.
         rctx.file("BUILD.bazel", _incompatible_build(
             "cache.tar",
-            "Move dependencies are fetched only on Linux hosts with git and tar (host %s)." % host,
+            "Move dependencies are fetched only on supported Linux hosts (host %s)." % host,
             outs = "unavailable/cache.tar",
         ))
         return
+    if not git or not tar or not env_tool:
+        # A supported host missing a tool is misconfigured: fail loudly rather
+        # than let the Move tests be skipped.
+        fail("move_git_dependency needs git, tar and env on the host PATH")
 
     entry = _sanitize(rctx.attr.remote) + "_" + commit
     stage = "stage"
     root = stage + "/" + entry
 
     # Ignore system and global git configuration (URL rewrites, credentials),
-    # and drop ambient variables that would redirect git to another repository.
+    # drop ambient variables that would redirect git or inject templates, and
+    # never run hooks.
     env = {
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_CONFIG_NOSYSTEM": "1",
@@ -192,12 +197,14 @@ def _move_git_dependency_impl(rctx):
             "GIT_INDEX_FILE",
             "GIT_NAMESPACE",
             "GIT_OBJECT_DIRECTORY",
+            "GIT_TEMPLATE_DIR",
             "GIT_WORK_TREE",
         ]
-    ] + [str(git)]
+    ] + [str(git), "-c", "core.hooksPath=/dev/null"]
 
     gitc = git + ["-C", root]
-    _run(rctx, git + ["init", "--quiet", root], "git init", env = env)
+    # An empty template keeps hooks (and anything else) out of the new repo.
+    _run(rctx, git + ["init", "--quiet", "--template=", root], "git init", env = env)
     _run(rctx, gitc + ["remote", "add", "origin", rctx.attr.remote], "git remote add", env = env)
     _run(rctx, gitc + ["config", "remote.origin.promisor", "true"], "git config", env = env)
     _run(rctx, gitc + ["config", "remote.origin.partialclonefilter", "blob:none"], "git config", env = env)
@@ -253,10 +260,15 @@ move_git_dependency = repository_rule(
 def _move_host_git_impl(rctx):
     # Reading PATH through rctx.getenv re-runs this rule when PATH changes.
     rctx.getenv("PATH")
+    host = _host_platform(rctx)
+    if host not in _PLATFORM_CONSTRAINTS:
+        rctx.file("BUILD.bazel", _incompatible_build("git", "Unsupported host %s." % host))
+        return
     git = rctx.which("git")
     if not git:
-        rctx.file("BUILD.bazel", _incompatible_build("git", "No git on the host PATH."))
-        return
+        # A supported host without git is misconfigured; skipping would hide
+        # every Move test.
+        fail("move_host_git needs git on the host PATH")
     _run(rctx, [git, "--version"], "git --version")
     git = str(git)
     if "'" in git or "\n" in git:
