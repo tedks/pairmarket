@@ -72,24 +72,30 @@ The Move gates use Sui `--build-env mainnet`, matching the Phase 0 mainnet
 toolchain pin in `docs/design.md`.
 
 Bazel builds and tests the Move package offline with the same pinned Sui
-release (Linux x86_64; other hosts skip these targets). Bazel runs the
-official, unpatched Sui binary through the pinned glibc loader and libraries
-that the dev shell exports (`MOVE_SUI_LOADER`, `MOVE_SUI_LIBRARY_PATH`), so
-no FHS loader or nix-ld is needed inside `nix develop`;
-`build_defs/move/README.md` lists the host requirements:
+release (Linux x86_64; other hosts skip these targets). The rules come from
+the public [rules_sui_move](https://github.com/tedks/rules_sui_move) module,
+pinned by the `third_party/rules_sui_move` submodule; initialize it once per
+checkout before running Bazel, or module resolution fails:
 
 ```bash
+git submodule update --init third_party/rules_sui_move
 nix develop --command bazel build //contracts/pairmarket:pairmarket
 nix develop --command bazel test //...
 ```
 
-`:move_test` runs the package's Move unit tests, `:sui_pin_test` checks that
-`MODULE.bazel` and `flake.nix` pin the same Sui release, and
-`//build_defs/move:copy_test` checks the vendored rules against their
-manifest. When `Move.lock` changes its pinned framework commit, update the
-matching `move_git_dependency` in `MODULE.bazel`. `build_defs/move` is an
-exact copy of shared rules; see its README before editing. The Bazel targets
-complement the `pnpm verify` gates above; they do not replace them.
+Bazel runs the official, unpatched Sui binary through the pinned glibc loader
+and libraries that the dev shell exports (`MOVE_SUI_LOADER`,
+`MOVE_SUI_LIBRARY_PATH`), so no FHS loader or nix-ld is needed inside
+`nix develop`; the module's README lists the host requirements.
+
+`:move_test` runs the package's Move unit tests and `:sui_pin_test` checks
+that `MODULE.bazel` and `flake.nix` pin the same Sui release. When `Move.lock`
+changes its pinned framework commit, update the matching
+`move_git_dependency` in `MODULE.bazel`. Change the rules upstream in
+rules_sui_move, then move the submodule pin; do not patch them here. The
+submodule is listed in `REPO.bazel` `ignore_directories`, so its own tests
+are not part of `//...`. The Bazel targets complement the `pnpm verify` gates
+above; they do not replace them.
 
 ## Issue tracking (ditz, not beads)
 
