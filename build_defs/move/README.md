@@ -76,7 +76,9 @@ dependency packages; they are staged at their workspace paths.
 - Those measures stop git and chain RPC from reaching the network. Blocking
   every other connection relies on Bazel's sandbox: `move_package` actions
   request `block-network` and `move_test` always carries that tag, which the
-  Linux sandbox enforces. With
+  Linux sandbox enforces. Both also request `no-remote-exec`: the tools are
+  an absolute host git path and a binary chosen for the host, so the actions
+  always run locally. With
   `--spawn_strategy=local` (or another unsandboxed strategy) that tag does
   nothing, and "offline" means only the guarantees above.
 - `srcs` must include `Move.lock`, and a lock that is stale for the pinned CLI
@@ -112,15 +114,15 @@ dependency packages; they are staged at their workspace paths.
   fails instead of skipping, so a misconfigured machine cannot hide the
   tests. `move_test` takes its tools in the target configuration, so it is
   also skipped when `--platforms` names an unsupported target. Remote
-  execution on another platform is not supported: the `sui` binary is
-  compatible only with the host's platform, so with a different exec
-  platform registered first `move_package` is skipped as incompatible rather
-  than failing.
+  execution is not supported: actions are pinned to local execution, and the
+  `sui` binary is compatible only with the host's platform, so with an exec
+  platform of different constraints registered first `move_package` is
+  skipped as incompatible rather than failing.
 - Dependency fetches run git with every inherited `GIT_*` variable removed
   except `GIT_SSL_CAINFO` and `GIT_SSL_CAPATH` (trust anchors only),
   without system or global configuration, with a private HOME, an empty
-  template and no hooks. Other variables (proxy and CA-bundle settings) are
-  inherited, never copied into arguments. Changing them does not refetch a
+  template and no hooks. Non-`GIT_*` variables (proxy settings,
+  `SSL_CERT_FILE`, ...) are inherited, never copied into arguments. Changing them does not refetch a
   git dependency; `move_host_git` deliberately re-runs when PATH changes, to
   pick up a different git.
 - `:copy_test` cannot see a nested directory that has its own BUILD file

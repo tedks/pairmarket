@@ -191,11 +191,10 @@ def _move_git_dependency_impl(rctx):
     # git ignores system and global configuration, never prompts, uses a
     # private HOME and never runs hooks. Every GIT_* variable Bazel passes to
     # repository rules (directories, config, templates, exec path, ssh
-    # command, ...) is removed with env -u, which puts only names in argv,
-    # except git's own CA-bundle settings (_GIT_KEEP); other variables, such
-    # as proxy and CA-bundle settings, are inherited unchanged, so their
-    # values (proxy URLs may carry credentials) never appear in the process
-    # list. rctx.os.environ is read without making the
+    # command, ...) except the trust-anchor pair in _GIT_KEEP is removed
+    # with env -u, which puts only names in argv. Non-GIT_* variables (proxy
+    # settings, SSL_CERT_FILE, ...) are inherited unchanged, so their values
+    # (proxy URLs may carry credentials) never appear in the process list. rctx.os.environ is read without making the
     # variables fetch inputs, so changing them does not refetch.
     env = {
         "GIT_CONFIG_GLOBAL": "/dev/null",

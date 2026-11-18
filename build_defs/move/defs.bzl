@@ -113,7 +113,9 @@ def _move_package_impl(ctx):
         outputs = [out],
         mnemonic = "MoveBuild",
         progress_message = "Building Move package %s" % package,
-        execution_requirements = {"block-network": ""},
+        # The tools are host-specific (an absolute host git, a host-platform
+        # sui), so the action must run where it was analyzed.
+        execution_requirements = {"block-network": "", "no-remote-exec": ""},
         use_default_shell_env = True,
     )
     return [DefaultInfo(files = depset([out]))]
@@ -163,15 +165,20 @@ _move_test = rule(
     doc = "Runs one Sui Move package's unit tests with `sui move test`.",
 )
 
+_MOVE_TEST_TAGS = ["block-network", "no-remote-exec"]
+
 def move_test(name, tags = [], **kwargs):
     """Runs one Sui Move package's unit tests with `sui move test`.
 
     Always tagged `block-network`, so the Linux sandbox denies the test any
-    network access (move_package requests the same for its action).
+    network access, and `no-remote-exec`, because its tools are host-specific
+    (move_package requests the same for its action). `tags` must be a plain
+    list.
     """
+    tags = list(tags or [])
     _move_test(
         name = name,
-        tags = tags + ([] if "block-network" in tags else ["block-network"]),
+        tags = tags + [t for t in _MOVE_TEST_TAGS if t not in tags],
         **kwargs
     )
 
