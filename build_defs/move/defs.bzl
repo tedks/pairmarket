@@ -109,7 +109,10 @@ def _move_package_impl(ctx):
         executable = ctx.executable._runner,
         arguments = [args],
         inputs = depset(ctx.files.srcs + ctx.files.deps + [manifest]),
-        tools = [ctx.executable.sui, ctx.executable.git],
+        # The sui wrapper's runfiles (the release itself) must sit beside it
+        # at their own paths, so they are listed as tools too.
+        tools = [ctx.executable.sui, ctx.executable.git] +
+                ctx.attr.sui[DefaultInfo].default_runfiles.files.to_list(),
         outputs = [out],
         mnemonic = "MoveBuild",
         progress_message = "Building Move package %s" % package,
@@ -124,6 +127,44 @@ move_package = rule(
     implementation = _move_package_impl,
     attrs = dict(_COMMON_ATTRS, **_tool_attrs("exec")),
     doc = "Compiles one Sui Move package with `sui move build`.",
+)
+
+def _sui_executable_impl(ctx):
+    out = ctx.actions.declare_file("bin/sui")
+    if not ctx.attr.loader:
+        ctx.actions.symlink(output = out, target_file = ctx.file.binary, is_executable = True)
+        return [DefaultInfo(executable = out, files = depset([out]))]
+
+    # The release names the FHS loader; run it through the pinned one instead.
+    # The real binary sits beside the wrapper both in the action input tree
+    # and in runfiles, so the wrapper finds it from its own path.
+    release = ctx.actions.declare_file("bin/sui-release")
+    ctx.actions.symlink(output = release, target_file = ctx.file.binary, is_executable = True)
+    ctx.actions.write(
+        out,
+        "#!/bin/sh\n" +
+        "# Runs the official Sui release beside this file with a pinned loader.\n" +
+        "exec %s --library-path %s \"${0%%/*}/sui-release\" \"$@\"\n" %
+        (_shell_quote(ctx.attr.loader), _shell_quote(ctx.attr.library_path)),
+        is_executable = True,
+    )
+    return [DefaultInfo(
+        executable = out,
+        files = depset([out]),
+        runfiles = ctx.runfiles(files = [release]),
+    )]
+
+sui_executable = rule(
+    implementation = _sui_executable_impl,
+    executable = True,
+    attrs = {
+        "binary": attr.label(allow_single_file = True, mandatory = True),
+        "library_path": attr.string(doc = "Colon-separated library directories for the loader."),
+        "loader": attr.string(doc = "Absolute dynamic loader path; empty runs the binary directly."),
+    },
+    doc = "The `sui` target `sui_release` generates: the release itself, or a wrapper " +
+          "that runs it through a given loader. Called with an absolute or relative path, " +
+          "never through PATH lookup.",
 )
 
 def _shell_quote(s):
@@ -155,7 +196,7 @@ def _move_test_impl(ctx):
 
     runfiles = ctx.runfiles(
         files = ctx.files.srcs + ctx.files.deps + [manifest, ctx.executable.sui, ctx.executable.git, ctx.executable._runner],
-    )
+    ).merge(ctx.attr.sui[DefaultInfo].default_runfiles)
     return [DefaultInfo(executable = launcher, runfiles = runfiles)]
 
 _move_test = rule(

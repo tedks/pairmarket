@@ -98,12 +98,28 @@ dependency packages; they are staged at their workspace paths.
 - Actions use Bazel's default shell environment for `PATH` (bash, coreutils,
   tar). Set `--incompatible_strict_action_env` to keep host `PATH` changes out
   of action keys.
-- Host requirements: Linux with the standard glibc dynamic loader and
-  libstdc++ (the official Sui release binary is not patched; on NixOS enable
-  nix-ld, otherwise fetching the release fails with that explanation); git,
-  tar and env on the PATH Bazel sees; and bash, coreutils and tar on the action
-  PATH, which is `/bin:/usr/bin:/usr/local/bin` under
-  `--incompatible_strict_action_env`.
+- The official Sui release is an unpatched glibc binary that names the FHS
+  loader (`/lib64/ld-linux-x86-64.so.2`). When `MOVE_SUI_LOADER` (a dynamic
+  loader) and `MOVE_SUI_LIBRARY_PATH` (directories holding glibc,
+  libstdc++ and libgcc_s) are set, `sui_release` runs the fetch-time probe
+  through that loader and `:sui` becomes a wrapper that runs the release the
+  same way in every build and test, so no FHS loader, nix-ld or other host
+  configuration is needed. A Nix dev shell exports both from its pinned
+  nixpkgs:
+
+  ```nix
+  MOVE_SUI_LOADER = pkgs.stdenv.cc.bintools.dynamicLinker;
+  MOVE_SUI_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.libc pkgs.stdenv.cc.cc.lib ];
+  ```
+
+  Changing either refetches `sui_release` (the archive comes from the
+  repository cache). Without them the release runs directly and the host
+  needs the FHS loader and libstdc++; a failing probe says so.
+- Host requirements: Linux; git, tar and env on the PATH Bazel sees; and bash,
+  coreutils and tar on the action PATH. Under
+  `--incompatible_strict_action_env` that PATH is
+  `/bin:/usr/bin:/usr/local/bin` for upstream Bazel; the nixpkgs Bazel
+  substitutes its own bash and coreutils.
 - `sui_release` fetches the archive for the host platform only. A host with no
   listed archive downloads no Sui binary, and the targets that need it are
   skipped as incompatible. On a platform the rules do not support (anything

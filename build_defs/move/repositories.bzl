@@ -10,6 +10,13 @@ dependency cache, packed as a single tarball for the build actions.
 `move_host_git` exposes the host's git: the Sui CLI drives git even when
 every dependency is already in its cache.
 
+The official release is an unpatched glibc binary that names the FHS loader
+(/lib64/ld-linux-x86-64.so.2). When MOVE_SUI_LOADER and MOVE_SUI_LIBRARY_PATH
+are set (a Nix dev shell exports a pinned glibc loader and the glibc and
+libstdc++ library directories), the fetch-time probe and every build and test
+run the release through that loader, so no FHS loader is needed; otherwise
+the release runs directly.
+
 Only Bazel's repository fetch uses the network. Host requirements during
 fetch: `tar` (releases and dependencies) and `git` (dependencies, host git).
 """
@@ -71,6 +78,21 @@ genrule(
 )
 """ % (why, name, outs or (name + ".unavailable"))
 
+def _sui_runtime(rctx):
+    """Returns [loader, library_path] from the environment, or [] when unset."""
+    loader = rctx.getenv("MOVE_SUI_LOADER", "")
+    library_path = rctx.getenv("MOVE_SUI_LIBRARY_PATH", "")
+    if not loader and not library_path:
+        return []
+    if not loader or not library_path:
+        fail("set both MOVE_SUI_LOADER and MOVE_SUI_LIBRARY_PATH, or neither")
+    for value in [loader] + library_path.split(":"):
+        if not value.startswith("/") or [c for c in ["'", "\"", "\\", "\n", "$", "`"] if c in value]:
+            fail("MOVE_SUI_LOADER and MOVE_SUI_LIBRARY_PATH must be absolute paths without quotes, '$' or '`', got '%s'" % value)
+        if not rctx.path(value).exists:
+            fail("%s (from MOVE_SUI_LOADER or MOVE_SUI_LIBRARY_PATH) does not exist" % value)
+    return [loader, library_path]
+
 def _sui_release_impl(rctx):
     host = _host_platform(rctx)
     for key, value in rctx.attr.archives.items():
@@ -110,28 +132,46 @@ def _sui_release_impl(rctx):
         fail("no sui executable in %s" % url)
     _run(rctx, ["mv", "sui", "sui-release"], "mv sui")
 
-    probe = rctx.execute(["./sui-release", "--version"], quiet = True)
+    runtime = _sui_runtime(rctx)
+    if runtime:
+        probe_args = [runtime[0], "--library-path", runtime[1], "./sui-release", "--version"]
+    else:
+        probe_args = ["./sui-release", "--version"]
+    probe = rctx.execute(probe_args, quiet = True)
     if probe.return_code != 0:
-        fail(("the official Sui %s release for %s did not run (%d): %s%s\n" +
-              "A likely cause: it is an unpatched glibc binary, so the host needs " +
-              "the standard dynamic loader and libstdc++ (on NixOS, enable nix-ld).") %
-             (rctx.attr.version, host, probe.return_code, probe.stdout, probe.stderr))
+        if runtime:
+            hint = "It was run through MOVE_SUI_LOADER=%s with MOVE_SUI_LIBRARY_PATH=%s." % tuple(runtime)
+        else:
+            hint = ("A likely cause: it is an unpatched glibc binary that needs the FHS " +
+                    "loader and libstdc++. Without them (e.g. NixOS), set " +
+                    "MOVE_SUI_LOADER and MOVE_SUI_LIBRARY_PATH, as the Nix dev shell does.")
+        fail("the official Sui %s release for %s did not run (%d): %s%s\n%s" %
+             (rctx.attr.version, host, probe.return_code, probe.stdout, probe.stderr, hint))
     reported = probe.stdout.strip()
     expected = "sui " + rctx.attr.version + "-"
     if not reported.startswith(expected):
         fail("release reports '%s', expected '%s...'" % (reported, expected))
 
-    rctx.file("BUILD.bazel", _PINS_EXPORT + """# Sui %s for %s, from %s
-genrule(
+    rctx.file("BUILD.bazel", _PINS_EXPORT + """load(%r, "sui_executable")
+
+# Sui %s for %s, from %s
+sui_executable(
     name = "sui",
-    srcs = ["sui-release"],
-    outs = ["bin/sui"],
-    cmd = "cp $< $@",
-    executable = True,
+    binary = "sui-release",
+    loader = %r,
+    library_path = %r,
     target_compatible_with = %s,
     visibility = ["//visibility:public"],
 )
-""" % (rctx.attr.version, host, url, repr(_PLATFORM_CONSTRAINTS[host])))
+""" % (
+        str(Label(":defs.bzl")),
+        rctx.attr.version,
+        host,
+        url,
+        runtime[0] if runtime else "",
+        runtime[1] if runtime else "",
+        repr(_PLATFORM_CONSTRAINTS[host]),
+    ))
 
 sui_release = repository_rule(
     implementation = _sui_release_impl,
@@ -140,7 +180,9 @@ sui_release = repository_rule(
 The host's archive is fetched by integrity; on a host with no listed archive
 nothing is downloaded and `:sui` is incompatible, so dependent targets are
 skipped. Actions run where Bazel runs them locally; remote execution on a
-different platform is not supported.""",
+different platform is not supported. MOVE_SUI_LOADER and
+MOVE_SUI_LIBRARY_PATH, when set, select the loader that runs the release
+(see the module docstring); changing them refetches.""",
     attrs = {
         "archives": attr.string_list_dict(
             mandatory = True,
