@@ -1,0 +1,25 @@
+# Offline Sui Move rules, kept as exact copies (see README.md).
+load(":defs.bzl", "move_rules_copy_test")
+
+exports_files(
+    [
+        "defs.bzl",
+        "repositories.bzl",
+        "runner.sh",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+move_rules_copy_test(
+    name = "copy_test",
+    size = "small",
+    files = [
+        "BUILD.bazel",
+        "README.md",
+        "defs.bzl",
+        "repositories.bzl",
+        "runner.sh",
+    ],
+    manifest = "MANIFEST.sha256",
+    tags = ["block-network"],
+)
