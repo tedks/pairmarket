@@ -1,4 +1,4 @@
-load("//build_defs/move:defs.bzl", "move_package", "move_test", "sui_pin_test")
+load("@rules_sui_move//sui_move:defs.bzl", "move_package", "move_test", "sui_pin_test")
 
 package(default_visibility = ["//visibility:private"])
 

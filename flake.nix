@@ -74,7 +74,7 @@
               pkgs.git
             ];
 
-            # Bazel's Move rules (build_defs/move) run the official, unpatched
+            # Bazel's Move rules (rules_sui_move) run the official, unpatched
             # Sui release through this pinned glibc loader and these libraries,
             # so no FHS loader or nix-ld is needed.
             MOVE_SUI_LOADER = pkgs.stdenv.cc.bintools.dynamicLinker;

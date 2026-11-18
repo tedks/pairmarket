@@ -3,18 +3,23 @@ module(
     version = "0.0.0",
 )
 
-# Platform constraints for the Sui CLI archive selected per host.
-bazel_dep(name = "platforms", version = "1.0.0")
+# Sui Move Bazel rules, pinned by the third_party/rules_sui_move submodule
+# (run `git submodule update --init third_party/rules_sui_move` before Bazel).
+bazel_dep(name = "rules_sui_move", version = "0.1.0")
+local_path_override(
+    module_name = "rules_sui_move",
+    path = "third_party/rules_sui_move",
+)
 
 # Move: build and test contracts/pairmarket offline with the Sui CLI release
 # flake.nix pins (checked by //contracts/pairmarket:sui_pin_test). The Phase 0
 # toolchain supports Linux x86_64 only; other hosts skip the Move targets
 # (Linux aarch64 still fetches the small framework git dependency first).
-sui_release = use_repo_rule("//build_defs/move:repositories.bzl", "sui_release")
+sui_release = use_repo_rule("@rules_sui_move//sui_move:repositories.bzl", "sui_release")
 
-move_git_dependency = use_repo_rule("//build_defs/move:repositories.bzl", "move_git_dependency")
+move_git_dependency = use_repo_rule("@rules_sui_move//sui_move:repositories.bzl", "move_git_dependency")
 
-move_host_git = use_repo_rule("//build_defs/move:repositories.bzl", "move_host_git")
+move_host_git = use_repo_rule("@rules_sui_move//sui_move:repositories.bzl", "move_host_git")
 
 move_host_git(name = "move_host_git")
 
