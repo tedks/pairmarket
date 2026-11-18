@@ -1,0 +1,47 @@
+load("//build_defs/move:defs.bzl", "move_package", "move_test", "sui_pin_test")
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "srcs",
+    srcs = [
+        "Move.lock",
+        "Move.toml",
+    ] + glob(
+        [
+            "sources/**/*.move",
+            "tests/**/*.move",
+        ],
+        allow_empty = False,
+    ),
+)
+
+_MOVE_DEPS = ["@move_sui_718ae563//:cache.tar"]
+
+move_package(
+    name = "pairmarket",
+    srcs = [":srcs"],
+    build_env = "mainnet",
+    git = "@move_host_git//:git",
+    sui = "@sui_cli//:sui",
+    deps = _MOVE_DEPS,
+)
+
+move_test(
+    name = "move_test",
+    size = "small",
+    srcs = [":srcs"],
+    build_env = "mainnet",
+    git = "@move_host_git//:git",
+    sui = "@sui_cli//:sui",
+    tags = ["block-network"],
+    deps = _MOVE_DEPS,
+)
+
+sui_pin_test(
+    name = "sui_pin_test",
+    size = "small",
+    files = ["//:flake.nix"],
+    pins = "@sui_cli//:pins.txt",
+    tags = ["block-network"],
+)
