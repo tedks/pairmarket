@@ -73,12 +73,12 @@ toolchain pin in `docs/design.md`.
 
 Bazel builds and tests the Move package offline with the same pinned Sui
 release (Linux x86_64; other hosts skip these targets). The rules come from
-the public [rules_sui_move](https://github.com/tedks/rules_sui_move) module,
-pinned by the `third_party/rules_sui_move` submodule; initialize it once per
+the public [rules_move](https://github.com/tedks/rules_move) module,
+pinned by the `third_party/rules_move` submodule; initialize it once per
 checkout before running Bazel, or module resolution fails:
 
 ```bash
-git submodule update --init third_party/rules_sui_move
+git submodule update --init third_party/rules_move
 nix develop --command bazel build //contracts/pairmarket:pairmarket
 nix develop --command bazel test //...
 ```
@@ -92,7 +92,7 @@ and libraries that the dev shell exports (`MOVE_SUI_LOADER`,
 that `MODULE.bazel` and `flake.nix` pin the same Sui release. When `Move.lock`
 changes its pinned framework commit, update the matching
 `move_git_dependency` in `MODULE.bazel`. Change the rules upstream in
-rules_sui_move, then move the submodule pin; do not patch them here. The
+rules_move, then move the submodule pin; do not patch them here. The
 submodule is listed in `REPO.bazel` `ignore_directories`, so its own tests
 are not part of `//...`. The Bazel targets complement the `pnpm verify` gates
 above; they do not replace them.
