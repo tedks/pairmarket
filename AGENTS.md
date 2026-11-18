@@ -72,7 +72,10 @@ The Move gates use Sui `--build-env mainnet`, matching the Phase 0 mainnet
 toolchain pin in `docs/design.md`.
 
 Bazel builds and tests the Move package offline with the same pinned Sui
-release (Linux x86_64; other hosts skip these targets):
+release (Linux x86_64; other hosts skip these targets). Bazel runs the
+official, unpatched Sui binary, so even inside `nix develop` the host needs
+the standard glibc loader and libstdc++ (on NixOS, nix-ld) or the fetch fails;
+`build_defs/move/README.md` lists the host requirements:
 
 ```bash
 nix develop --command bazel build //contracts/pairmarket:pairmarket
