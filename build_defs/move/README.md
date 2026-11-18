@@ -74,8 +74,9 @@ dependency packages; they are staged at their workspace paths.
   endpoints at a closed loopback port, and refuse every git transport. A
   missing dependency fails; nothing is fetched by git.
 - Those measures stop git and chain RPC from reaching the network. Blocking
-  every other connection relies on Bazel's sandbox: the targets request
-  `block-network`, which the Linux sandbox enforces. With
+  every other connection relies on Bazel's sandbox: `move_package` actions
+  request `block-network` and `move_test` always carries that tag, which the
+  Linux sandbox enforces. With
   `--spawn_strategy=local` (or another unsandboxed strategy) that tag does
   nothing, and "offline" means only the guarantees above.
 - `srcs` must include `Move.lock`, and a lock that is stale for the pinned CLI
@@ -97,8 +98,8 @@ dependency packages; they are staged at their workspace paths.
   of action keys.
 - Host requirements: Linux with the standard glibc dynamic loader and
   libstdc++ (the official Sui release binary is not patched; on NixOS enable
-  nix-ld, otherwise fetching the release fails with that explanation); git
-  and tar on the PATH Bazel sees; and bash, coreutils and tar on the action
+  nix-ld, otherwise fetching the release fails with that explanation); git,
+  tar and env on the PATH Bazel sees; and bash, coreutils and tar on the action
   PATH, which is `/bin:/usr/bin:/usr/local/bin` under
   `--incompatible_strict_action_env`.
 - `sui_release` fetches the archive for the host platform only. A host with no
@@ -111,8 +112,12 @@ dependency packages; they are staged at their workspace paths.
   fails instead of skipping, so a misconfigured machine cannot hide the
   tests. `move_test` takes its tools in the target configuration, so it is
   also skipped when `--platforms` names an unsupported target. Remote
-  execution on another platform is not supported.
-- Dependency fetches run git with every inherited `GIT_*` variable removed,
+  execution on another platform is not supported: the `sui` binary is
+  compatible only with the host's platform, so with a different exec
+  platform registered first `move_package` is skipped as incompatible rather
+  than failing.
+- Dependency fetches run git with every inherited `GIT_*` variable removed
+  except `GIT_SSL_CAINFO` and `GIT_SSL_CAPATH` (trust anchors only),
   without system or global configuration, with a private HOME, an empty
   template and no hooks. Other variables (proxy and CA-bundle settings) are
   inherited, never copied into arguments. Changing them does not refetch a

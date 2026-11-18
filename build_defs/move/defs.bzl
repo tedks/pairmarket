@@ -156,12 +156,24 @@ def _move_test_impl(ctx):
     )
     return [DefaultInfo(executable = launcher, runfiles = runfiles)]
 
-move_test = rule(
+_move_test = rule(
     implementation = _move_test_impl,
     attrs = dict(_COMMON_ATTRS, **_tool_attrs("target")),
     test = True,
     doc = "Runs one Sui Move package's unit tests with `sui move test`.",
 )
+
+def move_test(name, tags = [], **kwargs):
+    """Runs one Sui Move package's unit tests with `sui move test`.
+
+    Always tagged `block-network`, so the Linux sandbox denies the test any
+    network access (move_package requests the same for its action).
+    """
+    _move_test(
+        name = name,
+        tags = tags + ([] if "block-network" in tags else ["block-network"]),
+        **kwargs
+    )
 
 def _sui_pin_test_impl(ctx):
     script = ctx.actions.declare_file(ctx.label.name + ".sh")

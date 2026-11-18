@@ -113,8 +113,8 @@ def _sui_release_impl(rctx):
     probe = rctx.execute(["./sui-release", "--version"], quiet = True)
     if probe.return_code != 0:
         fail(("the official Sui %s release for %s did not run (%d): %s%s\n" +
-              "It is an unpatched glibc binary: the host needs the standard " +
-              "dynamic loader and libstdc++ (on NixOS, enable nix-ld).") %
+              "A likely cause: it is an unpatched glibc binary, so the host needs " +
+              "the standard dynamic loader and libstdc++ (on NixOS, enable nix-ld).") %
              (rctx.attr.version, host, probe.return_code, probe.stdout, probe.stderr))
     reported = probe.stdout.strip()
     expected = "sui " + rctx.attr.version + "-"
@@ -150,10 +150,16 @@ different platform is not supported.""",
     },
 )
 
+# Certificate settings only add trust anchors for HTTPS verification; they
+# cannot redirect the fetch or disable verification, so they are inherited.
+_GIT_KEEP = ["GIT_SSL_CAINFO", "GIT_SSL_CAPATH"]
+
 def _move_git_dependency_impl(rctx):
     commit = rctx.attr.commit
     if len(commit) != 40 or [c for c in commit.elems() if c not in _HEX]:
         fail("commit must be a full lowercase 40-hex git object name, got '%s'" % commit)
+    if rctx.attr.remote.startswith("-") or not rctx.attr.remote:
+        fail("remote must be a URL, got '%s'" % rctx.attr.remote)
     if not rctx.attr.paths:
         fail("paths must name the package directories used from %s" % rctx.attr.remote)
     for path in rctx.attr.paths:
@@ -185,10 +191,11 @@ def _move_git_dependency_impl(rctx):
     # git ignores system and global configuration, never prompts, uses a
     # private HOME and never runs hooks. Every GIT_* variable Bazel passes to
     # repository rules (directories, config, templates, exec path, ssh
-    # command, ...) is removed with env -u, which puts only names in argv;
-    # other variables, such as proxy and CA-bundle settings, are inherited
-    # unchanged, so their values (proxy URLs may carry credentials) never
-    # appear in the process list. rctx.os.environ is read without making the
+    # command, ...) is removed with env -u, which puts only names in argv,
+    # except git's own CA-bundle settings (_GIT_KEEP); other variables, such
+    # as proxy and CA-bundle settings, are inherited unchanged, so their
+    # values (proxy URLs may carry credentials) never appear in the process
+    # list. rctx.os.environ is read without making the
     # variables fetch inputs, so changing them does not refetch.
     env = {
         "GIT_CONFIG_GLOBAL": "/dev/null",
@@ -199,7 +206,7 @@ def _move_git_dependency_impl(rctx):
     drop = sorted([
         name
         for name in rctx.os.environ
-        if name.startswith("GIT_") and name not in env
+        if name.startswith("GIT_") and name not in env and name not in _GIT_KEEP
     ])
     git = [str(env_tool)] + ["-u" + name for name in drop] + [str(git), "-c", "core.hooksPath=/dev/null"]
 
