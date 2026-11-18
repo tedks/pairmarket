@@ -20,8 +20,10 @@ filegroup(
 move_rules_copy_test(
     name = "copy_test",
     size = "small",
-    # Every file under this directory, nested ones included, so any added file
-    # fails until it is listed (the copy is flat).
+    # Every file under this directory, nested ones included, so an added file
+    # fails until it is listed. The copy is flat. Bazel globs stop at nested
+    # packages, so a new subdirectory with its own BUILD file escapes this
+    # test; the parent's check_move_rule_copies still reports it.
     files = glob(
         ["**"],
         exclude = ["MANIFEST.sha256"],

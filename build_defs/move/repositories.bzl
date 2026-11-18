@@ -144,6 +144,20 @@ different platform is not supported.""",
     },
 )
 
+# Environment a dependency fetch may legitimately need; everything else is
+# dropped (see _move_git_dependency_impl).
+_FETCH_PASSTHROUGH = [
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NIX_SSL_CERT_FILE",
+    "NO_PROXY",
+    "SSL_CERT_DIR",
+    "SSL_CERT_FILE",
+    "https_proxy",
+    "http_proxy",
+    "no_proxy",
+]
+
 def _move_git_dependency_impl(rctx):
     commit = rctx.attr.commit
     if len(commit) != 40 or [c for c in commit.elems() if c not in _HEX]:
@@ -176,31 +190,22 @@ def _move_git_dependency_impl(rctx):
     stage = "stage"
     root = stage + "/" + entry
 
-    # Ignore system and global git configuration (URL rewrites, credentials),
-    # drop ambient variables that would redirect git or inject templates, and
-    # never run hooks.
-    env = {
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_TERMINAL_PROMPT": "0",
-    }
-    git = [env_tool] + [
-        "-u" + name
-        for name in [
-            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-            "GIT_CEILING_DIRECTORIES",
-            "GIT_COMMON_DIR",
-            "GIT_CONFIG",
-            "GIT_CONFIG_COUNT",
-            "GIT_CONFIG_PARAMETERS",
-            "GIT_DIR",
-            "GIT_INDEX_FILE",
-            "GIT_NAMESPACE",
-            "GIT_OBJECT_DIRECTORY",
-            "GIT_TEMPLATE_DIR",
-            "GIT_WORK_TREE",
-        ]
-    ] + [str(git), "-c", "core.hooksPath=/dev/null"]
+    # Run git in a clean environment: only PATH, HOME and the proxy and CA
+    # bundle settings a fetch may need pass through, so no ambient GIT_*
+    # variable (directories, config, templates, exec path, ssh command) can
+    # reach it. System and global configuration are ignored and hooks never run.
+    clean = ["-i", "PATH=" + (rctx.getenv("PATH") or ""), "HOME=" + str(rctx.path("home"))]
+    for name in _FETCH_PASSTHROUGH:
+        value = rctx.getenv(name)
+        if value != None:
+            clean.append(name + "=" + value)
+    clean += [
+        "GIT_CONFIG_GLOBAL=/dev/null",
+        "GIT_CONFIG_NOSYSTEM=1",
+        "GIT_TERMINAL_PROMPT=0",
+    ]
+    git = [env_tool] + clean + [str(git), "-c", "core.hooksPath=/dev/null"]
+    env = {}
 
     gitc = git + ["-C", root]
     # An empty template keeps hooks (and anything else) out of the new repo.

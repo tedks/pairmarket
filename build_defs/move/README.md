@@ -103,6 +103,13 @@ dependency packages; they are staged at their workspace paths.
   incompatible stubs too and nothing is fetched; on a supported platform
   whose release has no listed archive, the small git dependency fetches still
   run when those targets are loaded. A supported host missing git or tar
-  fails instead of skipping, so a misconfigured machine cannot hide the tests. `move_test` takes its tools in the target
-  configuration, so it is also skipped when `--platforms` names an
-  unsupported target. Remote execution on another platform is not supported.
+  fails instead of skipping, so a misconfigured machine cannot hide the
+  tests. `move_test` takes its tools in the target configuration, so it is
+  also skipped when `--platforms` names an unsupported target. Remote
+  execution on another platform is not supported.
+- Dependency fetches run git in a clean environment (PATH, HOME, proxy and
+  CA-bundle variables only), without system or global configuration, with
+  an empty template and no hooks.
+- `:copy_test` cannot see a nested directory that has its own BUILD file
+  (Bazel globs stop at packages); keep the copy flat. The parent-side copy
+  check, which reads git trees, reports such an addition.
